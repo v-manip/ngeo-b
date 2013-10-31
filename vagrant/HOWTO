@@ -5,19 +5,19 @@
 # Clone ngEO Browse Server
 git clone git@github.com:EOX-A/ngeo-b.git
 cd ngeo-b/
+git submodule init
+git submodule update
 
 # Prepare local environment
 cd vagrant/shares/
 git clone git@github.com:EOxServer/eoxserver.git
 cd eoxserver/
 git checkout 0.3
-cd ..
+cd ../
 git clone git@github.com:mapserver/mapcache.git
 cd mapcache/
 git checkout branch-1-2
-cd ..
-git clone git@github.com:EOX-A/ngeo-b_autotest.git
-cd ..
+cd ../../
 
 # Install VirtualBox & Vagrant
 # Tested with 
