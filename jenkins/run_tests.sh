@@ -1,7 +1,10 @@
 #!/bin/sh -xe
 
+# ngEO Browse Server
+NGEOB_INSTALL_DIR="$WORKSPACE"
+
 # activate the virtual environment
-cd "$WORKSPACE"
+cd "$NGEOB_INSTALL_DIR"
 source .venv/bin/activate
 
 echo "**> running tests ..."

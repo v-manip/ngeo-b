@@ -16,6 +16,10 @@ if [ ! -f /etc/ld.so.conf.d/mapcache.conf ] || ! grep -Fxq "/usr/local/lib" /etc
 fi
 ldconfig
 
+# V-Manip Server
+cd /var/v-manip-server/
+python setup.py develop
+
 # ngEO Browse Server
 cd /var/ngeob/
 python setup.py develop
