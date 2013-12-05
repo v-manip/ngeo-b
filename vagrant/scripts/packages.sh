@@ -7,6 +7,7 @@ yum update -y
 yum install -y gdal gdal-python postgis Django14 proj-epsg
 yum install -y python-lxml mod_wsgi httpd postgresql-server python-psycopg2 pytz
 yum install -y libxml2 libxml2-python mapserver mapserver-python
+yum install -y mod_ssl openssl
 
 # Install some build dependencies
 yum install -y gcc make gcc-c++ kernel-devel-`uname -r` zlib-devel \
