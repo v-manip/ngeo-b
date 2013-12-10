@@ -44,7 +44,7 @@ source .venv/bin/activate
 
 # Uninstall/Install EOxServer
 pip uninstall --yes EOxServer
-pip install -–install-option="--disable-extended-reftools" --upgrade git+https://github.com/v-manip/eoxserver.git 
+pip install --install-option="--disable-extended-reftools" --upgrade git+https://github.com/v-manip/eoxserver.git 
 
 # Install ngEO Browse Server
 echo "**> installing ngeo-b..."
