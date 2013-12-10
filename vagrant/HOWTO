@@ -84,6 +84,12 @@ vagrant up
 vagrant provision       # If the provisioning didn't finish during vagrant up or after changes.
 vagrant vbguest -f      # (Re-)Install virtualbox guest additions in case it complains about not matching versions.
 
+#virtual guest installation problems NEW!
+vagrant ssh
+sudo yum install kernel kernel-devel
+exit
+vagrant reload
+
 #Slow performance: Check "Enable IO APIC", uncheck "Extended Features: Enable PAE/NX", and uncheck "Enable Nested Paging" in VirtualBox Manager.
 #Symlinks with VirtualBox 4.1 not working: vi /opt/vagrant/embedded/gems/gems/vagrant-1.3.5/plugins/providers/virtualbox/driver/version_4_1.rb and add those changes: https://github.com/mitchellh/vagrant/commit/387692f9c8fa4031050646e2773b3d2d9b2c994e
 
