@@ -9,7 +9,7 @@
 #to the folder '/opt/shibboleth-idp/conf' on the IDP machine."
 
 USE_SHIBBOLETH=true    
-SP_HOST="10.70.10.79"         #probably something like "sp.eox.at" in the future
+SP_HOST="10.70.10.80"         #probably something like "sp.eox.at" in the future
 IDP_HOST="192.168.16.147"     #probably something like "idp.eox.at" in the future    
 PROTECTED_DIR="/browse"
 
@@ -846,7 +846,11 @@ EOF
     service shibd stop
     service httpd restart
     service shibd start
-     
+    
+    #Permanently start memcached service
+    chkconfig memcached on
+    service memcached restart
+ 
     echo "Done installing Shibboleth"
   else
       echo "Skipped Shibboleth installation"
