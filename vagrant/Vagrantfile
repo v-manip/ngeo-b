@@ -39,6 +39,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.synced_folder  "./shares/v-manip-server", "/var/v-manip-server"
   config.vm.synced_folder  "..", "/var/ngeob"
   config.vm.synced_folder  "../ngeo-b_autotest", "/var/ngeob_autotest"
+  config.vm.synced_folder  "./shares/vis_data_factory", "/var/vis_data_factory"
 
   # Shell provisioning
   config.vm.provision "shell", path: "scripts/selinux.sh"

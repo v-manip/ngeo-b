@@ -16,6 +16,7 @@ cd mapcache/
 git checkout branch-1-2
 cd ..
 git clone git@github.com:v-manip/v-manip-server.git
+git clone git@github.com:v-manip/vis_data_factory.git
 cd ..
 
 # Install VirtualBox & Vagrant
