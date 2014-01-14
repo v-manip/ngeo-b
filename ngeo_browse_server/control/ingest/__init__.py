@@ -79,7 +79,7 @@ from ngeo_browse_server.control.queries import (
     get_existing_browse, create_browse_report, create_browse, remove_browse
 )
 from ngeo_browse_server.control.ingest.preprocessing import (
-    VerticalCurtainPreprocessor
+    VerticalCurtainPreprocessor, VerticalCurtainGeoReference
 )
 
 
@@ -409,10 +409,9 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
             extent, time_interval = create_browse(
                 parsed_browse, browse_report, browse_layer, coverage_id, 
                 crs, replaced, result.footprint_geom, result.num_bands, 
-                output_filename, seed_areas, config=config
+                output_filename, seed_areas, result=result, config=config
             )
             
-        
     except:
         # save exception info to re-raise it
         exc_info = sys.exc_info()
@@ -581,7 +580,13 @@ def _georef_from_parsed(parsed_browse):
         return None
     
     elif parsed_browse.geo_type == "verticalCurtainBrowse":
-        return None
+        pixels = decode_coord_list(parsed_browse.col_row_list)
+        coord_list = decode_coord_list(parsed_browse.coord_list, swap_axes)
+
+        gcps = [(x, y, pixel, line) 
+                for (x, y), (pixel, line) in zip(coord_list, pixels)]
+
+        return VerticalCurtainGeoReference(gcps, srid)
 
     else:
         raise NotImplementedError("Invalid geo-reference type '%s'."

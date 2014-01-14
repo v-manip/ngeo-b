@@ -85,7 +85,7 @@ def create_browse_report(browse_report, browse_layer_model):
 
 def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
                   crs, replaced, footprint, num_bands, filename, 
-                  seed_areas, config=None):
+                  seed_areas, result=None, config=None):
     """ Creates all required database models for the browse and returns the
         calculated extent of the registered coverage.
     """
@@ -183,8 +183,6 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     
     vertical_grid = browse.vertical_grid
 
-    
-
     kwargs = dict(
         identifier=coverage_id, range_type=range_type, srid=srid,
         min_x=minx, min_y=miny, max_x=maxx, max_y=maxy, 
@@ -192,6 +190,11 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         begin_time=browse.start_time, end_time=browse.end_time,
         footprint=footprint
     )
+
+    if browse.geo_type == "verticalCurtainBrowse":
+        kwargs["ground_path"] = result.ground_path
+        kwargs["look_angle"] = browse.look_angle
+
 
     # check the vertical grid to supply additional coverage creation options
     if vertical_grid and vertical_grid.vertical_grid_type == "referenceGrid":
@@ -223,6 +226,7 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     if vertical_grid is None:    
         coverage = eoxs_models.RectifiedDataset.objects.create(**kwargs)
     elif not browse.geo_type == "verticalCurtainBrowse":
+        kwargs["look_angle"] = browse.look_angle
         coverage = eoxs_models.CubeCoverage.objects.create(**kwargs)
 
     else:
@@ -238,7 +242,7 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     # create and save a "heightvalues" json file, if a vertical grid requires one
     if vertical_grid.vertical_grid_type in ("verticalCurtainVerticalGrid", "referenceGrid"):
         base, _ = splitext(filename)
-        height_values_filename = base + "heightvalues.json"
+        height_values_filename = base + "_heightvalues.json"
 
         with open(height_values_filename, "w+") as f:
             json.dump(height_values, f)
@@ -254,10 +258,22 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
             format="application/json", dataset=coverage
         )
 
+    if browse.geo_type == "verticalCurtainBrowse":
+        # create and save a "gcps" json file and write the gcps to the file
+        base, _ = splitext(filename)
+        gcps_filename = base + "_gcps.json"
+
+        with open(gcps_filename, "w+") as f:
+            json.dump(result.geo_reference.gcps, f)
+
+        backends_models.DataItem.objects.create(
+            location=gcps_filename, semantic="gcps",
+            format="application/json", dataset=coverage
+        )
+
 
     # insert the coverage into the dataset series if a browse layer was given
     if browse_layer_model:
-        import pdb; pdb.set_trace()
         collection = eoxs_models.DatasetSeries.objects.get(
             identifier=browse_layer_model.id
         )
@@ -325,12 +341,20 @@ def remove_browse(browse_model, browse_layer_model, coverage_id,
     """
     
     # get previous extent to "un-seed" MapCache in that area
-    coverage = eoxs_models.RectifiedDataset.objects.get(identifier=coverage_id)
+    coverage = eoxs_models.Coverage.objects.get(identifier=coverage_id).cast()
     replaced_extent = coverage.extent
     replaced_filename = coverage.data_items.get(
         semantic__startswith="bands"
     ).location
-    
+
+    try:
+        height_values_item = coverage.data_items.get(
+            semantic__startswith="bands"
+        )
+        os.remove(height_values_item.location)
+    except backends_models.DataItem.DoesNotExist:
+        pass
+
     coverage.delete()
     browse_model.delete()
     
@@ -340,7 +364,7 @@ def remove_browse(browse_model, browse_layer_model, coverage_id,
             end_time__gte=browse_model.end_time,
             source__name=browse_layer_model.id
         )
-    except DoesNotExist:
+    except mapcache_models.Time.DoesNotExist:
         # issue a warning if no corresponding Time object exists
         logger.warning("No MapCache Time object found for time: %s, %s" % (browse_model.start_time, browse_model.end_time))
     
