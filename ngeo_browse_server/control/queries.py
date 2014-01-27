@@ -240,7 +240,7 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     )
 
     # create and save a "heightvalues" json file, if a vertical grid requires one
-    if vertical_grid.vertical_grid_type in ("verticalCurtainVerticalGrid", "referenceGrid"):
+    if vertical_grid and vertical_grid.vertical_grid_type in ("verticalCurtainVerticalGrid", "referenceGrid"):
         base, _ = splitext(filename)
         height_values_filename = base + "_heightvalues.json"
 
