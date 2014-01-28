@@ -1,3 +1,6 @@
 [submodule "ngeo-b_autotest"]
 	path = ngeo-b_autotest
 	url = https://github.com/v-manip/ngeo-b_autotest.git
+[submodule "vagrant/shares/lib"]
+	path = vagrant/shares/lib
+	url = https://github.com/v-manip/lib.git
