@@ -190,6 +190,8 @@ INSTALLED_APPS = (
     'ngeo_browse_server.config',
     'ngeo_browse_server.control',
     'ngeo_browse_server.mapcache',
+    'vmanip_server.mesh_factory',
+    'vmanip_server.mesh_cache',
 )
 
 
@@ -204,8 +206,12 @@ COMPONENTS = (
     'eoxserver.backends.storages.*',
     'eoxserver.backends.packages.*',
     'eoxserver.resources.coverages.metadata.formats.*',
+    'eoxserver.services.ows.wcs.**',
     'eoxserver.services.ows.wms.**',
     'eoxserver.services.mapserver.**',
+    'eoxserver.services.ows.wps.**',
+    'vmanip_server.mesh_factory.ows.w3ds.**',
+    'vmanip_server.mesh_cache.ows.w3ds.**',
 )
 
 
