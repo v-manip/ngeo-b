@@ -130,7 +130,7 @@ ngeo_install() {
 
     echo "Performing installation step 0"
     echo "Uninstalling any previous version"
-#    ngeo_uninstall
+    ngeo_uninstall
 
     echo "Starting ngEO Browse Server installation"
     echo "Assuming successful execution of installation steps 10, 20, and 30"
@@ -254,6 +254,7 @@ ngeo_install() {
 
     # Install software in develop mode
 
+    yum install -y gdal-devel make gcc python-devel
     # EOxServer
     cd ${CLONEDIR}/eoxserver/
     python setup.py develop --disable-extended-reftools
@@ -261,7 +262,7 @@ ngeo_install() {
     cd ${CLONEDIR}/v-manip-server/
     python setup.py develop
     # ngEO Browse Server
-    cd ${CLONEDIR}/ngeob/
+    cd ${CLONEDIR}/ngeo-b/
     python setup.py develop
 
     echo "Performing installation step 180"
@@ -1115,9 +1116,9 @@ EOF
     echo "Performing uninstallation step 80"
     echo "If any of the data locations has been changed delete all browse data there."
 
-    echo "Performing uninstallation step 90"
-    echo "Delete extra Yum repositories"
-    yum erase -y epel-release elgis-release eox-release
+#    echo "Performing uninstallation step 90"
+#    echo "Delete extra Yum repositories"
+#    yum erase -y epel-release elgis-release eox-release
 
     echo "Performing uninstallation step 100"
     echo "Stop Apache HTTP server"#
@@ -1128,12 +1129,12 @@ EOF
         chkconfig httpd off
     fi
 
-    echo "Performing uninstallation step 110"
-    echo "Remove packages"
-    yum erase -y  python-lxml mod_wsgi httpd postgresql pytz python-psycopg2 \
-                  gdal gdal-python postgis mapserver Django14 mapserver-python \
-                  mapcache ngEO_Browse_Server EOxServer libxerces-c-3_1 \
-                  shibboleth mod_ssl
+#    echo "Performing uninstallation step 110"
+#    echo "Remove packages"
+#    yum erase -y  python-lxml mod_wsgi httpd postgresql pytz python-psycopg2 \
+#                  gdal gdal-python postgis mapserver Django14 mapserver-python \
+#                  mapcache ngEO_Browse_Server EOxServer libxerces-c-3_1 \
+#                  shibboleth mod_ssl
 
     echo "Finished $SUBSYSTEM uninstallation"
 
