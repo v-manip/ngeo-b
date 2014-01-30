@@ -884,8 +884,8 @@ EOF
     <Directory "$NGEOB_INSTALL_DIR">
         Options Indexes FollowSymLinks
         AllowOverride None
-        Order Deny,Allow
-        Deny from all
+        Order Allow,Deny
+        Allow from all
     </Directory>
 
     Alias /static "$NGEOB_INSTALL_DIR/ngeo_browse_server_instance/ngeo_browse_server_instance/static"
@@ -899,6 +899,9 @@ EOF
         WSGIProcessGroup ngeob
         Order Allow,Deny
         Allow from all
+        Header set Access-Control-Allow-Origin *
+        Header set Access-Control-Allow-Headers if-modified-since
+        Header add Access-Control-Allow-Headers range
     </Directory>
 
     DavLockDB "$NGEOB_INSTALL_DIR/dav/DavLock"
