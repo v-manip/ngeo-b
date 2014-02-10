@@ -38,14 +38,15 @@ class Browse(object):
     """ Abstract base class for browse records. """
 
     def __init__(self, file_name, image_type, reference_system_identifier, 
-                 start_time, end_time, browse_identifier=None):
+                 start_time, end_time, browse_identifier=None, 
+                 vertical_grid=None):
         self._browse_identifier = browse_identifier
         self._file_name = file_name
         self._image_type = image_type
         self._reference_system_identifier = reference_system_identifier
         self._start_time = start_time
         self._end_time = end_time
-
+        self._vertical_grid = vertical_grid
 
     browse_identifier = property(lambda self: self._browse_identifier)
     file_name = property(lambda self: self._file_name)
@@ -53,6 +54,9 @@ class Browse(object):
     reference_system_identifier = property(lambda self: self._reference_system_identifier)
     start_time = property(lambda self: self._start_time)
     end_time = property(lambda self: self._end_time)
+
+    # for 3D/vertical curtain browses
+    vertical_grid = property(lambda self: self._vertical_grid)
 
     @property
     def geo_type(self):
@@ -144,7 +148,62 @@ class RegularGridBrowse(Browse):
 
 
 class VerticalCurtainBrowse(Browse):
+    def __init__(self, node_number, col_row_list, coord_list, look_angle,
+                 vertical_grid=None, *args, **kwargs):
+        super(VerticalCurtainBrowse, self).__init__(*args, **kwargs)
+        self._node_number = node_number
+        self._col_row_list = col_row_list
+        self._coord_list = coord_list
+        self._look_angle = look_angle
+        self._vertical_grid = vertical_grid
+
     geo_type = property(lambda self: "verticalCurtainBrowse")
+
+    node_number = property(lambda self: self._node_number)
+    col_row_list = property(lambda self: self._col_row_list)
+    coord_list = property(lambda self: self._coord_list)
+    look_angle = property(lambda self: self._look_angle)
+    vertical_grid = property(lambda self: self._vertical_grid)
+
+    def get_kwargs(self):
+        kwargs = super(VerticalCurtainBrowse, self).get_kwargs()
+        kwargs.update({
+            "node_number": self._node_number,
+            "col_row_list": self._col_row_list[:2047],
+            "coord_list": self._coord_list[:2047],
+            "look_angle": self._look_angle
+        })
+        return kwargs
+
+
+class VerticalGrid(object):
+    vertical_grid_type = ""
+
+class VerticalRegularGrid(VerticalGrid):
+    vertical_grid_type = "regularGrid"
+    
+    def __init__(self, levels_number, base_level_height, top_level_height):
+        self.levels_number = levels_number
+        self.base_level_height = base_level_height
+        self.top_level_height = top_level_height
+
+
+class VerticalReferenceGrid(VerticalGrid):
+    vertical_grid_type = "referenceGrid"
+
+    def __init__(self, levels_number, height_levels_list):
+        self.levels_number = levels_number
+        self.height_levels_list = height_levels_list
+
+
+class VerticalCurtainVerticalGrid(VerticalGrid):
+    vertical_grid_type = "verticalCurtainVerticalGrid"
+
+    def __init__(self, levels_numbers_list, base_levels_heights_list, 
+                 top_levels_heights_list):
+        self.levels_numbers_list = levels_numbers_list
+        self.base_levels_heights_list = base_levels_heights_list
+        self.top_levels_heights_list = top_levels_heights_list
 
 
 class ModelInGeotiffBrowse(Browse):
@@ -195,6 +254,11 @@ def browse_from_model(browse_model):
         return ModelInGeotiffBrowse(**kwargs)
     except models.ModelInGeotiffBrowse.DoesNotExist: pass
 
+    try: 
+        _ = browse_model.modelingeotiffbrowse
+        return ModelInGeotiffBrowse(**kwargs)
+    except models.ModelInGeotiffBrowse.DoesNotExist: pass
+    
 
 class BrowseReport(object):
     """ Browse report data model. """

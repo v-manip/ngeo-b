@@ -7,6 +7,7 @@ yum update -y
 yum install -y gdal gdal-python postgis Django14 proj-epsg
 yum install -y python-lxml mod_wsgi httpd postgresql-server python-psycopg2 pytz
 yum install -y libxml2 libxml2-devel libxml2-python mapserver mapserver-python pcre-devel.x86_64
+yum install -y unzip
 
 # Install some build dependencies
 yum install -y gcc make gcc-c++ kernel-devel-`uname -r` zlib-devel \
@@ -15,7 +16,8 @@ yum install -y gcc make gcc-c++ kernel-devel-`uname -r` zlib-devel \
                geos-devel fcgi-devel gdal-devel python-devel
 
 yum install -y python-pip
-pip install PIL pycollada
+pip install PIL 
+pip install pycollada
 
 # Attention: Make sure to not install mapcache, ngEO_Browse_Server, and 
 # EOxServer from rpm packages!

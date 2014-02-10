@@ -78,6 +78,9 @@ from ngeo_browse_server.config.browsereport.serialization import (
 from ngeo_browse_server.control.queries import (
     get_existing_browse, create_browse_report, create_browse, remove_browse
 )
+from ngeo_browse_server.control.ingest.preprocessing import (
+    VerticalCurtainPreprocessor, VerticalCurtainGeoReference
+)
 
 
 logger = logging.getLogger(__name__)
@@ -114,7 +117,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
     # create the required preprocessor/format selection
     format_selection = get_format_selection("GTiff",
                                             **get_format_config(config))
-    if do_preprocessing:
+    if do_preprocessing and not browse_layer.contains_vertical_curtains:
         # add config parameters and custom params
         params = get_optimization_config(config)
         
@@ -146,6 +149,8 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
             params["bands"] = bands
         
         preprocessor = WMSPreProcessor(format_selection, crs=crs, **params)
+    elif browse_layer.contains_vertical_curtains:
+        preprocessor = VerticalCurtainPreprocessor()
     else:
         preprocessor = None # TODO: CopyPreprocessor
     
@@ -309,6 +314,8 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
             coverage_id = _generate_coverage_id(parsed_browse, browse_layer)
             logger.info("Browse ID '%s' is not a valid coverage ID. Using "
                         "generated ID '%s'." % (old_id, coverage_id))
+
+
     
     # get the `leave_original` setting
     leave_original = False
@@ -402,10 +409,9 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
             extent, time_interval = create_browse(
                 parsed_browse, browse_report, browse_layer, coverage_id, 
                 crs, replaced, result.footprint_geom, result.num_bands, 
-                output_filename, seed_areas, config=config
+                output_filename, seed_areas, result=result, config=config
             )
             
-        
     except:
         # save exception info to re-raise it
         exc_info = sys.exc_info()
@@ -573,6 +579,15 @@ def _georef_from_parsed(parsed_browse):
     elif parsed_browse.geo_type == "modelInGeotiffBrowse":
         return None
     
+    elif parsed_browse.geo_type == "verticalCurtainBrowse":
+        pixels = decode_coord_list(parsed_browse.col_row_list)
+        coord_list = decode_coord_list(parsed_browse.coord_list, swap_axes)
+
+        gcps = [(x, y, pixel, line) 
+                for (x, y), (pixel, line) in zip(coord_list, pixels)]
+
+        return VerticalCurtainGeoReference(gcps, srid)
+
     else:
         raise NotImplementedError("Invalid geo-reference type '%s'."
                                   % parsed_browse.geo_type)

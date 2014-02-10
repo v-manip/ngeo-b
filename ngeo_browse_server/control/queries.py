@@ -28,6 +28,8 @@
 #-------------------------------------------------------------------------------
 
 import logging
+import json
+from os.path import splitext
 
 from django.core.exceptions import ValidationError
 
@@ -83,7 +85,7 @@ def create_browse_report(browse_report, browse_layer_model):
 
 def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
                   crs, replaced, footprint, num_bands, filename, 
-                  seed_areas, config=None):
+                  seed_areas, result=None, config=None):
     """ Creates all required database models for the browse and returns the
         calculated extent of the registered coverage.
     """
@@ -126,6 +128,13 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         browse_model.full_clean()
         browse_model.save()
     
+    elif browse.geo_type == "verticalCurtainBrowse":
+        browse_model = _create_model(browse, browse_report_model,
+                                     browse_layer_model, coverage_id, 
+                                     models.VerticalCurtainBrowse)
+        browse_model.full_clean()
+        browse_model.save()
+
     else:
         raise NotImplementedError
     
@@ -145,6 +154,9 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         browse_identifier_model.full_clean()
         browse_identifier_model.save()
     
+
+    # TODO: add vertical grid
+
 
     # register the optimized dataset
     logger.info("Creating Rectified Dataset.")
@@ -169,8 +181,9 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
     )
     
-    # create the coverage itself
-    coverage = eoxs_models.RectifiedDataset.objects.create(
+    vertical_grid = browse.vertical_grid
+
+    kwargs = dict(
         identifier=coverage_id, range_type=range_type, srid=srid,
         min_x=minx, min_y=miny, max_x=maxx, max_y=maxy, 
         size_x=size_x, size_y=size_y,
@@ -178,11 +191,86 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         footprint=footprint
     )
 
+    if browse.geo_type == "verticalCurtainBrowse":
+        kwargs["ground_path"] = result.ground_path
+        kwargs["look_angle"] = browse.look_angle
+
+
+    # check the vertical grid to supply additional coverage creation options
+    if vertical_grid and vertical_grid.vertical_grid_type == "referenceGrid":
+        height_values = sorted(
+            map(float, vertical_grid.height_levels_list.split(" "))
+        )
+        kwargs["min_z"] = min(height_values)
+        kwargs["max_z"] = max(height_values)
+        kwargs["num_height_levels"] = None
+        kwargs["vertical_cs_id"] = 1234
+
+    elif vertical_grid and vertical_grid.vertical_grid_type == "regularGrid":
+        kwargs["min_z"] = vertical_grid.base_level_height
+        kwargs["max_z"] = vertical_grid.top_level_height
+        kwargs["num_height_levels"] = vertical_grid.levels_number
+        kwargs["vertical_cs_id"] = 1234
+
+    elif vertical_grid and vertical_grid.vertical_grid_type == "verticalCurtainVerticalGrid":
+        bases = map(float, vertical_grid.base_levels_heights_list.split(" "))
+        tops = map(float, vertical_grid.top_levels_heights_list.split(" "))
+        height_values = zip(bases, tops)
+        kwargs["min_z"] = min(bases)
+        kwargs["max_z"] = max(tops)
+        kwargs["num_height_levels"] = None
+        kwargs["vertical_cs_id"] = 1234
+
+
+    # create the coverage itself
+    if vertical_grid is None:    
+        coverage = eoxs_models.RectifiedDataset.objects.create(**kwargs)
+    elif not browse.geo_type == "verticalCurtainBrowse":
+        kwargs["look_angle"] = browse.look_angle
+        coverage = eoxs_models.CubeCoverage.objects.create(**kwargs)
+
+    else:
+        coverage = eoxs_models.CurtainCoverage.objects.create(**kwargs)
+        
+
     # save a file reference as a data item
     data_item = backends_models.DataItem.objects.create(
         location=filename, semantic="bands[1:%d]" % num_bands,
         format="image/tiff", dataset=coverage
     )
+
+    # create and save a "heightvalues" json file, if a vertical grid requires one
+    if vertical_grid and vertical_grid.vertical_grid_type in ("verticalCurtainVerticalGrid", "referenceGrid"):
+        base, _ = splitext(filename)
+        height_values_filename = base + "_heightvalues.json"
+
+        with open(height_values_filename, "w+") as f:
+            json.dump(height_values, f)
+
+        height_values_semantic = "heightvalues[%s]" % (
+            "columns" 
+            if vertical_grid.vertical_grid_type == "verticalCurtainVerticalGrid"
+            else "levels"
+        )
+
+        backends_models.DataItem.objects.create(
+            location=height_values_filename, semantic=height_values_semantic,
+            format="application/json", dataset=coverage
+        )
+
+    if browse.geo_type == "verticalCurtainBrowse":
+        # create and save a "gcps" json file and write the gcps to the file
+        base, _ = splitext(filename)
+        gcps_filename = base + "_gcps.json"
+
+        with open(gcps_filename, "w+") as f:
+            json.dump(result.geo_reference.gcps, f)
+
+        backends_models.DataItem.objects.create(
+            location=gcps_filename, semantic="gcps",
+            format="application/json", dataset=coverage
+        )
+
 
     # insert the coverage into the dataset series if a browse layer was given
     if browse_layer_model:
@@ -253,12 +341,20 @@ def remove_browse(browse_model, browse_layer_model, coverage_id,
     """
     
     # get previous extent to "un-seed" MapCache in that area
-    coverage = eoxs_models.RectifiedDataset.objects.get(identifier=coverage_id)
+    coverage = eoxs_models.Coverage.objects.get(identifier=coverage_id).cast()
     replaced_extent = coverage.extent
     replaced_filename = coverage.data_items.get(
         semantic__startswith="bands"
     ).location
-    
+
+    try:
+        height_values_item = coverage.data_items.get(
+            semantic__startswith="bands"
+        )
+        os.remove(height_values_item.location)
+    except backends_models.DataItem.DoesNotExist:
+        pass
+
     coverage.delete()
     browse_model.delete()
     
@@ -268,7 +364,7 @@ def remove_browse(browse_model, browse_layer_model, coverage_id,
             end_time__gte=browse_model.end_time,
             source__name=browse_layer_model.id
         )
-    except DoesNotExist:
+    except mapcache_models.Time.DoesNotExist:
         # issue a warning if no corresponding Time object exists
         logger.warning("No MapCache Time object found for time: %s, %s" % (browse_model.start_time, browse_model.end_time))
     
