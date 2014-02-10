@@ -15,7 +15,8 @@ yum install -y gcc make gcc-c++ kernel-devel-`uname -r` zlib-devel \
                geos-devel fcgi-devel gdal-devel python-devel
 
 yum install -y python-pip
-pip install PIL pycollada
+pip install PIL 
+pip install pycollada
 
 # Attention: Make sure to not install mapcache, ngEO_Browse_Server, and 
 # EOxServer from rpm packages!
