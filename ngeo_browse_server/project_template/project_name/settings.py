@@ -209,6 +209,7 @@ COMPONENTS = (
     'eoxserver.services.ows.wcs.**',
     'eoxserver.services.ows.wms.**',
     'eoxserver.services.mapserver.**',
+    'eoxserver.services.native.**',
     'eoxserver.services.ows.wps.**',
     'vmanip_server.mesh_factory.ows.w3ds.**',
     'vmanip_server.mesh_cache.ows.w3ds.**',
