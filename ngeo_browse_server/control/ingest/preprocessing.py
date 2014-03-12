@@ -26,10 +26,14 @@
 #-------------------------------------------------------------------------------
 
 
+from os.path import splitext
 import shutil
 from django.contrib.gis.geos import MultiPolygon, Polygon, LineString
 
 from eoxserver.resources.coverages.crss import crs_tolerance
+
+from PIL import Image
+import numpy as np
 
 
 class VerticalCurtainGeoReference(object):
@@ -55,16 +59,26 @@ class VerticalCurtainGeoReference(object):
 
 
 class VerticalCurtainPreprocessor(object):
-    def __init__(self):
-        pass
+    def __init__(self, radiometric_interval_min=None, 
+                 radiometric_interval_max=None):
+        self.radiometric_interval_min = radiometric_interval_min
+        self.radiometric_interval_max = radiometric_interval_max
 
     def generate_filename(self, output_filename):
         # TODO: use correct filename extension
-        return output_filename
+        return splitext(output_filename)[0] + ".png"
 
     def process(self, input_filename, output_filename, geo_reference,
                 generate_metadata=False):
-        shutil.copyfile(input_filename, output_filename)
+
+        textureImage = Image.open(input_filename)
+
+        i = np.array(list(textureImage.getdata())).reshape(textureImage.size[::-1])
+        g = np.divide(np.subtract(i, self.radiometric_interval_min), (self.radiometric_interval_max - self.radiometric_interval_min) / 255.0)
+        g[g < 0] = 0
+        textureImage = Image.fromarray(g.astype(np.uint8), 'L')
+
+        textureImage.save(output_filename)
         return VerticalCurtainPreProcessResult(1, geo_reference)
 
 
