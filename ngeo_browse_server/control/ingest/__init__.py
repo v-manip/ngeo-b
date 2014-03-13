@@ -62,9 +62,9 @@ from ngeo_browse_server.control.ingest.result import (
 )
 from ngeo_browse_server.control.ingest.config import (
     get_project_relative_path, get_storage_path, get_optimized_path, 
-    get_format_config, get_optimization_config
+    get_format_config, get_optimization_config, get_ingest_config
 )
-from ngeo_browse_server.control.ingest.filetransaction import FileTransaction
+from ngeo_browse_server.filetransaction import FileTransaction
 from ngeo_browse_server.control.ingest.config import (
     get_success_dir, get_failure_dir
 )
@@ -78,6 +78,8 @@ from ngeo_browse_server.config.browsereport.serialization import (
 from ngeo_browse_server.control.queries import (
     get_existing_browse, create_browse_report, create_browse, remove_browse
 )
+from ngeo_browse_server.control.ingest.preprocessing.preprocessor import (
+    NGEOPreProcessor
 from ngeo_browse_server.control.ingest.preprocessing import (
     VerticalCurtainPreprocessor, VerticalCurtainGeoReference
 )
@@ -148,7 +150,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
             
             params["bands"] = bands
         
-        preprocessor = WMSPreProcessor(format_selection, crs=crs, **params)
+        preprocessor = NGEOPreProcessor(format_selection, crs=crs, **params)
     elif browse_layer.contains_vertical_curtains:
         preprocessor = VerticalCurtainPreprocessor()
     else:
@@ -223,6 +225,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                     # report error
                     logger.error("Failure during ingestion of browse '%s'." %
                                  parsed_browse.browse_identifier)
+                    logger.error("Exception was '%s': %s" % (type(e).__name__, str(e)))
                     logger.debug(traceback.format_exc() + "\n")
                     
                     # undo latest changes, append the failure and continue
@@ -296,6 +299,8 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
     replaced = False
     replaced_extent = None
     replaced_filename = None
+    merge_with = None
+    merge_footprint = None
     
     config = config or get_ngeo_config()
     
@@ -314,8 +319,6 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
             coverage_id = _generate_coverage_id(parsed_browse, browse_layer)
             logger.info("Browse ID '%s' is not a valid coverage ID. Using "
                         "generated ID '%s'." % (old_id, coverage_id))
-
-
     
     # get the `leave_original` setting
     leave_original = False
@@ -348,20 +351,60 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
         existing_browse_model = get_existing_browse(parsed_browse, browse_layer.id)
         if existing_browse_model:
             identifier = existing_browse_model.browse_identifier
+
+            # if the to be ingested browse is equal to an already stored one
+            # then raise an exception if the identifiers don't match
             if (identifier and parsed_browse.browse_identifier
                 and  identifier.value != parsed_browse.browse_identifier):
                 raise IngestionException("Existing browse with same start and end "
                                          "time does not have the same browse ID "
                                          "as the one to ingest.") 
             
-            replaced_time_interval = (existing_browse_model.start_time,
-                                      existing_browse_model.end_time)
-            
-            replaced_extent, replaced_filename = remove_browse(
-                existing_browse_model, browse_layer, coverage_id, seed_areas, config
-            )
-            replaced = True
-            logger.info("Existing browse found, replacing it.")
+
+            previous_time = existing_browse_model.browse_report.date_time
+            current_time = browse_report.date_time
+            timedelta = current_time - previous_time
+
+            # get strategy and merge threshold
+            ingest_config = get_ingest_config(config)
+            strategy = ingest_config["strategy"]
+            threshold = ingest_config["merge_threshold"]
+
+            if strategy == "merge" and timedelta < threshold:
+
+                if previous_time > current_time:
+                    # TODO: raise exception?
+                    pass
+
+                rect_ds = System.getRegistry().getFromFactory(
+                    "resources.coverages.wrappers.EOCoverageFactory",
+                    {"obj_id": existing_browse_model.coverage_id}
+                )
+                merge_footprint = rect_ds.getFootprint()
+                merge_with = rect_ds.getData().getLocation().getPath()
+                
+                replaced_time_interval = (existing_browse_model.start_time,
+                                          existing_browse_model.end_time)
+
+                _, _ = remove_browse(
+                    existing_browse_model, browse_layer, coverage_id, 
+                    seed_areas, config
+                )
+                replaced = True
+
+                logger.debug("Existing browse found, merging it.")
+            else: 
+                # perform replacement
+
+                replaced_time_interval = (existing_browse_model.start_time,
+                                          existing_browse_model.end_time)
+                
+                replaced_extent, replaced_filename = remove_browse(
+                    existing_browse_model, browse_layer, coverage_id, 
+                    seed_areas, config
+                )
+                replaced = True
+                logger.info("Existing browse found, replacing it.")
                 
         else:
             # A browse with that identifier does not exist, so just create a new one
@@ -377,7 +420,7 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
                                      "not to be replaced." % output_filename)
         
         # wrap all file operations with IngestionTransaction
-        with FileTransaction(output_filename, replaced_filename):
+        with FileTransaction((output_filename, replaced_filename)):
         
             # initialize a GeoReference for the preprocessor
             geo_reference = _georef_from_parsed(parsed_browse)
@@ -395,8 +438,10 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
                         % (input_filename, output_filename))
             
             try:
-                result = preprocessor.process(input_filename, output_filename,
-                                              geo_reference, generate_metadata=True)
+                result = preprocessor.process(
+                    input_filename, output_filename, geo_reference, 
+                    True, merge_with, merge_footprint
+                )
             except (RuntimeError, GCPTransformException), e:
                 raise IngestionException(str(e))
             
@@ -409,9 +454,10 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
             extent, time_interval = create_browse(
                 parsed_browse, browse_report, browse_layer, coverage_id, 
                 crs, replaced, result.footprint_geom, result.num_bands, 
-                output_filename, seed_areas, result=result, config=config
+                output_filename, seed_areas, config=config
             )
             
+        
     except:
         # save exception info to re-raise it
         exc_info = sys.exc_info()
@@ -500,10 +546,10 @@ def _georef_from_parsed(parsed_browse):
     swap_axes = hasSwappedAxes(srid)
     
     if parsed_browse.geo_type == "rectifiedBrowse":
-        coords = parse_coord_list(parsed_browse.coord_list, swap_axes)
-        assert(len(coords) == 2)
-        # values are for top/left and bottom/right pixel
-        coords = [coords[0][0], coords[1][1], coords[1][0], coords[0][1]]
+        coords = decode_coord_list(parsed_browse.coord_list, swap_axes)
+        # values are for bottom/left and top/right pixel
+        coords = [coord for pair in coords for coord in pair]
+        assert(len(coords) == 4)
         return Extent(*coords, srid=srid)
         
     elif parsed_browse.geo_type == "footprintBrowse":
