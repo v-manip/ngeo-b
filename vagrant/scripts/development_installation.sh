@@ -27,11 +27,12 @@ python setup.py develop
 # Configure ngEO Browse Server autotest instance
 cd /var/ngeob_autotest/
 
+rm -f /var/ngeob_autotest/data/mapcache.sqlite
+
 # Prepare DBs
 python manage.py syncdb --noinput
 python manage.py syncdb --database=mapcache --noinput
 python manage.py loaddata auth_data.json initial_rangetypes.json
-
 
 python manage.py ngeo_browse_layer --add /var/ngeob_autotest/data/layer_management/defaultLayers.xml
 

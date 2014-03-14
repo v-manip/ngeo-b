@@ -79,10 +79,9 @@ from ngeo_browse_server.control.queries import (
     get_existing_browse, create_browse_report, create_browse, remove_browse
 )
 from ngeo_browse_server.control.ingest.preprocessing.preprocessor import (
-    NGEOPreProcessor
-from ngeo_browse_server.control.ingest.preprocessing import (
-    VerticalCurtainPreprocessor, VerticalCurtainGeoReference
+    NGEOPreProcessor, VerticalCurtainPreprocessor, VerticalCurtainGeoReference
 )
+
 
 
 logger = logging.getLogger(__name__)
@@ -151,8 +150,27 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
             params["bands"] = bands
         
         preprocessor = NGEOPreProcessor(format_selection, crs=crs, **params)
+
     elif browse_layer.contains_vertical_curtains:
-        preprocessor = VerticalCurtainPreprocessor()
+
+        logger.info("Preparing Vertical Curtain Pre-Processor")
+
+        params = {}
+
+        # add radiometric interval
+        rad_min = browse_layer.radiometric_interval_min
+        if rad_min is not None:
+            params["radiometric_interval_min"] = rad_min
+        else:
+            rad_min = "min"
+        rad_max = browse_layer.radiometric_interval_max
+        if rad_max is not None:
+            params["radiometric_interval_max"] = rad_max
+        else:
+            rad_max = "max"
+
+        preprocessor = VerticalCurtainPreprocessor(**params)
+
     else:
         preprocessor = None # TODO: CopyPreprocessor
     
@@ -200,26 +218,32 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                     transaction.commit(using="mapcache")
                     
                     logger.info("Commited changes to database.")
+
+                    if not browse_layer.contains_vertical_curtains:
                     
-                    for minx, miny, maxx, maxy, start_time, end_time in seed_areas:
-                        try:
-                            
-                            # seed MapCache synchronously
-                            # TODO: maybe replace this with an async solution
-                            seed_mapcache(tileset=browse_layer.id, 
-                                          grid=browse_layer.grid, 
-                                          minx=minx, miny=miny, 
-                                          maxx=maxx, maxy=maxy, 
-                                          minzoom=browse_layer.lowest_map_level, 
-                                          maxzoom=browse_layer.highest_map_level,
-                                          start_time=start_time,
-                                          end_time=end_time,
-                                          delete=False,
-                                          **get_mapcache_seed_config(config))
-                            logger.info("Successfully finished seeding.")
-                            
-                        except Exception, e:
-                            logger.warn("Seeding failed: %s" % str(e))
+                        for minx, miny, maxx, maxy, start_time, end_time in seed_areas:
+                            try:
+                                
+                                # seed MapCache synchronously
+                                # TODO: maybe replace this with an async solution
+                                seed_mapcache(tileset=browse_layer.id, 
+                                              grid=browse_layer.grid, 
+                                              minx=minx, miny=miny, 
+                                              maxx=maxx, maxy=maxy, 
+                                              minzoom=browse_layer.lowest_map_level, 
+                                              maxzoom=browse_layer.highest_map_level,
+                                              start_time=start_time,
+                                              end_time=end_time,
+                                              delete=False,
+                                              **get_mapcache_seed_config(config))
+                                logger.info("Successfully finished seeding.")
+                                
+                            except Exception, e:
+                                logger.warn("Seeding failed: %s" % str(e))
+
+                    else:
+                        #TODO: Introduce special curtain seeding here
+                        pass
                     
                 except Exception, e:
                     # report error
@@ -454,7 +478,7 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
             extent, time_interval = create_browse(
                 parsed_browse, browse_report, browse_layer, coverage_id, 
                 crs, replaced, result.footprint_geom, result.num_bands, 
-                output_filename, seed_areas, config=config
+                output_filename, seed_areas, result, config=config
             )
             
         

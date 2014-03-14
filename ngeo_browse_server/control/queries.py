@@ -96,7 +96,7 @@ def create_browse_report(browse_report, browse_layer_model):
 
 def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
                   crs, replaced, footprint, num_bands, filename, 
-                  seed_areas, config=None):
+                  seed_areas, result, config=None):
     """ Creates all required database models for the browse and returns the
         calculated extent of the registered coverage.
     """
