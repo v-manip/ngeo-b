@@ -27,9 +27,15 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
+import os
+from os.path import join, splitext
 import logging
+import shutil
+from datetime import datetime
+import json
 
 from django.core.exceptions import ValidationError
+from django.contrib.gis.geos import Polygon, MultiPolygon
 
 from eoxserver.contrib import gdal
 from eoxserver.backends import models as backends_models
@@ -37,11 +43,18 @@ from eoxserver.resources.coverages import models as eoxs_models
 from eoxserver.resources.coverages.crss import fromShortCode
 from eoxserver.core.util.timetools import isoformat
 
-from ngeo_browse_server.config import models
+from ngeo_browse_server.config import (
+    models, get_ngeo_config, get_project_relative_path
+)
 from ngeo_browse_server.mapcache import models as mapcache_models
-from ngeo_browse_server.mapcache.tasks import seed_mapcache
-from ngeo_browse_server.mapcache.config import get_mapcache_seed_config
+from ngeo_browse_server.mapcache.tasks import (
+    seed_mapcache, add_mapcache_layer_xml, remove_mapcache_layer_xml
+)
+from ngeo_browse_server.mapcache.config import (
+    get_mapcache_seed_config, get_tileset_path
+)
 from ngeo_browse_server.exceptions import NGEOException
+from ngeo_browse_server.control.ingest.config import INGEST_SECTION
 
 
 logger = logging.getLogger(__name__)
@@ -83,7 +96,7 @@ def create_browse_report(browse_report, browse_layer_model):
 
 def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
                   crs, replaced, footprint, num_bands, filename, 
-                  seed_areas, config=None):
+                  seed_areas, result, config=None):
     """ Creates all required database models for the browse and returns the
         calculated extent of the registered coverage.
     """
@@ -126,6 +139,13 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         browse_model.full_clean()
         browse_model.save()
     
+    elif browse.geo_type == "verticalCurtainBrowse":
+        browse_model = _create_model(browse, browse_report_model,
+                                     browse_layer_model, coverage_id, 
+                                     models.VerticalCurtainBrowse)
+        browse_model.full_clean()
+        browse_model.save()
+
     else:
         raise NotImplementedError
     
@@ -145,6 +165,9 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         browse_identifier_model.full_clean()
         browse_identifier_model.save()
     
+
+    # TODO: add vertical grid
+
 
     # register the optimized dataset
     logger.info("Creating Rectified Dataset.")
@@ -169,8 +192,9 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)
     )
     
-    # create the coverage itself
-    coverage = eoxs_models.RectifiedDataset.objects.create(
+    vertical_grid = browse.vertical_grid
+
+    kwargs = dict(
         identifier=coverage_id, range_type=range_type, srid=srid,
         min_x=minx, min_y=miny, max_x=maxx, max_y=maxy, 
         size_x=size_x, size_y=size_y,
@@ -178,11 +202,86 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         footprint=footprint
     )
 
+    if browse.geo_type == "verticalCurtainBrowse":
+        kwargs["ground_path"] = result.ground_path
+        kwargs["look_angle"] = browse.look_angle
+
+
+    # check the vertical grid to supply additional coverage creation options
+    if vertical_grid and vertical_grid.vertical_grid_type == "referenceGrid":
+        height_values = sorted(
+            map(float, vertical_grid.height_levels_list.split(" "))
+        )
+        kwargs["min_z"] = min(height_values)
+        kwargs["max_z"] = max(height_values)
+        kwargs["num_height_levels"] = None
+        kwargs["vertical_cs_id"] = 1234
+
+    elif vertical_grid and vertical_grid.vertical_grid_type == "regularGrid":
+        kwargs["min_z"] = vertical_grid.base_level_height
+        kwargs["max_z"] = vertical_grid.top_level_height
+        kwargs["num_height_levels"] = vertical_grid.levels_number
+        kwargs["vertical_cs_id"] = 1234
+
+    elif vertical_grid and vertical_grid.vertical_grid_type == "verticalCurtainVerticalGrid":
+        bases = map(float, vertical_grid.base_levels_heights_list.split(" "))
+        tops = map(float, vertical_grid.top_levels_heights_list.split(" "))
+        height_values = zip(bases, tops)
+        kwargs["min_z"] = min(bases)
+        kwargs["max_z"] = max(tops)
+        kwargs["num_height_levels"] = None
+        kwargs["vertical_cs_id"] = 1234
+
+
+    # create the coverage itself
+    if vertical_grid is None:    
+        coverage = eoxs_models.RectifiedDataset.objects.create(**kwargs)
+    elif not browse.geo_type == "verticalCurtainBrowse":
+        kwargs["look_angle"] = browse.look_angle
+        coverage = eoxs_models.CubeCoverage.objects.create(**kwargs)
+
+    else:
+        coverage = eoxs_models.CurtainCoverage.objects.create(**kwargs)
+        
+
     # save a file reference as a data item
     data_item = backends_models.DataItem.objects.create(
         location=filename, semantic="bands[1:%d]" % num_bands,
         format="image/tiff", dataset=coverage
     )
+
+    # create and save a "heightvalues" json file, if a vertical grid requires one
+    if vertical_grid and vertical_grid.vertical_grid_type in ("verticalCurtainVerticalGrid", "referenceGrid"):
+        base, _ = splitext(filename)
+        height_values_filename = base + "_heightvalues.json"
+
+        with open(height_values_filename, "w+") as f:
+            json.dump(height_values, f)
+
+        height_values_semantic = "heightvalues[%s]" % (
+            "columns" 
+            if vertical_grid.vertical_grid_type == "verticalCurtainVerticalGrid"
+            else "levels"
+        )
+
+        backends_models.DataItem.objects.create(
+            location=height_values_filename, semantic=height_values_semantic,
+            format="application/json", dataset=coverage
+        )
+
+    if browse.geo_type == "verticalCurtainBrowse":
+        # create and save a "gcps" json file and write the gcps to the file
+        base, _ = splitext(filename)
+        gcps_filename = base + "_gcps.json"
+
+        with open(gcps_filename, "w+") as f:
+            json.dump(result.geo_reference.gcps, f)
+
+        backends_models.DataItem.objects.create(
+            location=gcps_filename, semantic="gcps",
+            format="application/json", dataset=coverage
+        )
+
 
     # insert the coverage into the dataset series if a browse layer was given
     if browse_layer_model:
@@ -253,12 +352,20 @@ def remove_browse(browse_model, browse_layer_model, coverage_id,
     """
     
     # get previous extent to "un-seed" MapCache in that area
-    coverage = eoxs_models.RectifiedDataset.objects.get(identifier=coverage_id)
+    coverage = eoxs_models.Coverage.objects.get(identifier=coverage_id).cast()
     replaced_extent = coverage.extent
     replaced_filename = coverage.data_items.get(
         semantic__startswith="bands"
     ).location
-    
+
+    try:
+        height_values_item = coverage.data_items.get(
+            semantic__startswith="bands"
+        )
+        os.remove(height_values_item.location)
+    except backends_models.DataItem.DoesNotExist:
+        pass
+
     coverage.delete()
     browse_model.delete()
     
@@ -404,3 +511,131 @@ def _create_model(browse, browse_report_model, browse_layer_model, coverage_id, 
     model = model_cls(browse_report=browse_report_model, browse_layer=browse_layer_model, 
                       coverage_id=coverage_id, **browse.get_kwargs())
     return model
+
+
+# browse layer management
+
+def add_browse_layer(browse_layer, config=None):
+    """ Add a browse layer to the ngEO Browse Server system. This includes the 
+        database models, cache configuration and filesystem paths.
+    """
+    config = config or get_ngeo_config()
+
+    try:
+        # create a new browse layer model
+        browse_layer_model = models.BrowseLayer(
+            **browse_layer.get_kwargs()
+        )
+
+        browse_layer_model.full_clean()
+        browse_layer_model.save()
+
+        for related_dataset_id in browse_layer.related_dataset_ids:
+            models.RelatedDataset.objects.get_or_create(
+                dataset_id=related_dataset_id, browse_layer=browse_layer_model
+            )
+
+    except Exception:
+        raise
+
+    # create EOxServer dataset series
+    eoxs_models.DatasetSeries.objects.create(identifier=browse_layer.id)
+
+    # remove source from mapcache sqlite
+    mapcache_models.Source.objects.create(name=browse_layer.id)
+
+    # add an XML section to the mapcache config xml
+    add_mapcache_layer_xml(browse_layer, config)
+
+    # create a base directory for optimized files
+    directory = get_project_relative_path(join(
+        config.get(INGEST_SECTION, "optimized_files_dir"), browse_layer.id
+    ))
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
+def update_browse_layer(browse_layer, config=None):
+    config = config or get_ngeo_config()
+
+    try:
+        browse_layer_model = models.BrowseLayer.objects.get(id=browse_layer.id)
+    except models.BrowseLayer.DoesNotExist:
+        raise Exception("Could not update the previous browse layer")
+
+    immutable_values = (
+        "id", "browse_type", "contains_vertical_curtains", "r_band", "g_band",
+        "b_band", "radiometric_interval_min", "radiometric_interval_max",
+        "grid", "lowest_map_level", "highest_map_level", "strategy"
+    )
+    for key in immutable_values:
+        if getattr(browse_layer_model, key) != getattr(browse_layer, key):
+            raise Exception("Cannot change immutable property '%s'." % key)
+
+    mutable_values = [
+        "title", "description", "browse_access_policy",
+        "timedimension_default", "tile_query_limit"
+    ]
+
+    refresh_mapcache_xml = False
+    for key in mutable_values:
+        setattr(browse_layer_model, key, getattr(browse_layer, key))
+        if key in ("timedimension_default", "tile_query_limit"):
+            refresh_mapcache_xml = True
+
+    for related_dataset_id in browse_layer.related_dataset_ids:
+        models.RelatedDataset.objects.get_or_create(
+            dataset_id=related_dataset_id, browse_layer=browse_layer_model
+        )
+
+    # remove all related datasets that are not referenced anymore
+    models.RelatedDataset.objects.filter(
+        browse_layer=browse_layer_model
+    ).exclude(
+        dataset_id__in=browse_layer.related_dataset_ids
+    ).delete()
+
+    browse_layer_model.full_clean()
+    browse_layer_model.save()
+
+    if refresh_mapcache_xml:
+        remove_mapcache_layer_xml(browse_layer, config)
+        add_mapcache_layer_xml(browse_layer, config)
+
+
+def delete_browse_layer(browse_layer, config=None):
+    config = config or get_ngeo_config()
+
+    # remove browse layer model. This should also delete all related browses
+    # and browse reports
+    models.BrowseLayer.objects.get(id=browse_layer.id).delete()
+    eoxs_models.DatasetSeries.objects.get(identifier=browse_layer.id).delete()
+
+    # remove source from mapcache sqlite
+    mapcache_models.Source.objects.get(name=browse_layer.id).delete()
+
+    # remove browse layer from mapcache XML
+    remove_mapcache_layer_xml(browse_layer, config)
+
+    # delete browse layer cache
+    try:
+        os.remove(get_tileset_path(browse_layer.browse_type))
+    except OSError:
+        # when no browse was ingested, the sqlite file does not exist, so just
+        # issue a warning
+        logger.warning(
+            "Could not remove tileset '%s'." 
+            % get_tileset_path(browse_layer.browse_type)
+        )
+
+    # delete all optimzed files by deleting the whole directory of the layer
+    optimized_dir = get_project_relative_path(join(
+        config.get(INGEST_SECTION, "optimized_files_dir"), browse_layer.id
+    ))
+    try:
+        shutil.rmtree(optimized_dir)
+    except OSError:
+        logger.error(
+            "Could not remove directory for optimzed files: '%s'." 
+            % optimized_dir
+        )

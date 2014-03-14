@@ -124,6 +124,9 @@ def decode_browse(browse_elem):
     
     elif vertical_curtain_footprint is not None:
         logger.info("Parsing Vertical Curtain Browse.")
+        kwargs.update(
+            vertical_curtain_footprint_decoder(vertical_curtain_footprint)
+        )
         return data.VerticalCurtainBrowse(**kwargs)
     
     else:
@@ -137,6 +140,16 @@ def decode_coord_list(coord_list, swap_axes=False):
         coords = list(pairwise(map(float, coord_list.split())))
         return [(x, y) for (y, x) in coords]
 
+
+def decode_grid(grid_elem):
+    if grid_elem.tag == ns_rep("verticalCurtainReferenceGrid"):
+        return data.VerticalReferenceGrid(
+            **vertical_reference_grid_decoder(grid_elem)
+        )
+    elif grid_elem.tag == ns_rep("verticalCurtainVerticalGrid"):
+        return data.VerticalCurtainVerticalGrid(
+            **vertical_reference_grid_decoder(grid_elem)
+        )
 
 browse_report_decoder = XMLDecoder({
     "date_time": ("rep:dateTime/text()", getDateTime),
@@ -174,4 +187,31 @@ regular_grid_decoder = XMLDecoder({
     "col_step": ("rep:colStep/text()", float),
     "row_step": ("rep:rowStep/text()", float),
     "coord_lists": ("rep:coordList/text()", str, "+")
+}, {"rep": ns_rep.uri})
+
+
+vertical_curtain_footprint_decoder = XMLDecoder({
+    "node_number": ("@nodeNumber", int),
+    "col_row_list": "rep:colRowList/text()",
+    "coord_list": "rep:coordList/text()",
+    "look_angle": ("rep:lookAngle/text()", float),
+    "vertical_grid": ("rep:verticalCurtainReferenceGrid|rep:verticalCurtainVerticalGrid", decode_grid)
+}, {"rep": ns_rep.uri})
+
+
+vertical_regular_grid_decoder = XMLDecoder({
+    "levels_number": ("rep:levelsNumber/text()", int),
+    "base_level_height": ("rep:baseLevelHeight/text()", float),
+    "top_level_height": ("rep:topLevelHeight/text()", float)
+}, {"rep": ns_rep.uri})
+
+vertical_reference_grid_decoder = XMLDecoder({
+    "levels_number": ("rep:levelsNumber/text()", int),
+    "height_levels_list": "rep:heightLevelsList/text()"
+}, {"rep": ns_rep.uri})
+
+vertical_curtain_vertical_grid_decoder = XMLDecoder({
+    "levels_numbers_list": "rep:levelsNumbersList/text()",
+    "base_levels_height_list": "rep:baseLevelsHeightsList/text()",
+    "top_levels_height_list": "rep:topLevelsHeightsList/text()"
 }, {"rep": ns_rep.uri})

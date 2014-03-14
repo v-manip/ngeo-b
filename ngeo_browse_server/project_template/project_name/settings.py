@@ -190,6 +190,8 @@ INSTALLED_APPS = (
     'ngeo_browse_server.config',
     'ngeo_browse_server.control',
     'ngeo_browse_server.mapcache',
+    'vmanip_server.mesh_factory',
+    'vmanip_server.mesh_cache',
 )
 
 
@@ -204,8 +206,13 @@ COMPONENTS = (
     'eoxserver.backends.storages.*',
     'eoxserver.backends.packages.*',
     'eoxserver.resources.coverages.metadata.formats.*',
+    'eoxserver.services.ows.wcs.**',
     'eoxserver.services.ows.wms.**',
     'eoxserver.services.mapserver.**',
+    'eoxserver.services.native.**',
+    'eoxserver.services.ows.wps.**',
+    'vmanip_server.mesh_factory.ows.w3ds.**',
+    'vmanip_server.mesh_cache.ows.w3ds.**',
 )
 
 
@@ -244,6 +251,10 @@ LOGGING = {
             'filename': join(PROJECT_DIR, 'logs', 'ngeo.log'),
             'formatter': 'verbose' if DEBUG else 'simple',
             'filters': [],
+        },
+        'controller_server_notification': {
+            'level': 'ERROR',
+            'class': 'ngeo_browse_server.control.control.notification.NotifyControllerServerHandler',
         }
     },
     'loggers': {
@@ -253,7 +264,7 @@ LOGGING = {
             'propagate': False,
         },
         'ngeo_browse_server': {
-            'handlers': ['ngeo_file'],
+            'handlers': ['ngeo_file', 'controller_server_notification'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },

@@ -39,6 +39,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.synced_folder  "./shares/v-manip-server", "/var/v-manip-server"
   config.vm.synced_folder  "..", "/var/ngeob"
   config.vm.synced_folder  "../ngeo-b_autotest", "/var/ngeob_autotest"
+  config.vm.synced_folder  "./shares/data", "/var/data"
 
   # Shell provisioning
   config.vm.provision "shell", path: "scripts/selinux.sh"
@@ -47,6 +48,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.provision "shell", path: "scripts/postgres.sh"
   config.vm.provision "shell", path: "scripts/development_installation.sh"
   config.vm.provision "shell", path: "scripts/httpd.sh"
+  config.vm.provision "shell", path: "scripts/load_test_data.sh"
   config.vm.provision "shell", path: "scripts/user_custom.sh"
 
   # Use package caching https://github.com/fgrehm/vagrant-cachier
@@ -56,7 +58,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.provider "virtualbox" do |v|
 
     # Custom name
-    v.name = "ngeo-b"
+    v.name = "ngeo-b-v-manip"
 
     # Increase memory and cpus
     v.customize ["modifyvm", :id, "--memory", 1024, "--cpus", 2]

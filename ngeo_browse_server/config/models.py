@@ -91,6 +91,21 @@ class BrowseLayer(models.Model):
     )
     highest_map_level = models.IntegerField(null=True, blank=True, default=None)
     lowest_map_level = models.IntegerField(null=True, blank=True, default=None)
+
+    # ingestion strategy
+    strategy = models.CharField(max_length=8, default="inherit",
+        choices=(
+            ("replace", "replace"), 
+            ("merge", "merge"), 
+            ("inherit", "inherit")
+        )
+    )
+
+    # for mapache timedimension default
+    timedimension_default = models.CharField(max_length=64)
+
+    # for mapcache lookup query limit
+    tile_query_limit = models.PositiveIntegerField(default=100)
     
     def __unicode__(self):
         return "Browse Layer '%s' with Browse Type '%s'" % (
@@ -112,7 +127,7 @@ class BrowseLayer(models.Model):
 class RelatedDataset(models.Model):
     """The Browse Layer configuration contains Related Datasets.
     
-    Note that this information is no needed by the Browse Server but stored 
+    Note that this information is not needed by the Browse Server but stored 
     for completeness.
     
     """
@@ -168,6 +183,25 @@ class Browse(models.Model):
     reference_system_identifier = models.CharField(max_length=10, validators=[ReferenceSystemIdentifierValidator])
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
+
+
+    @property
+    def vertical_grid(self):
+        try:
+            grid = self._vertical_grid
+        except VerticalGrid.DoesNotExist:
+            return None
+
+        try:
+            return grid.verticalregulargrid
+        except VerticalRegularGrid.DoesNotExist:
+            pass
+
+        try:
+            return grid.verticalreferencegrid
+        except VerticalReferenceGrid.DoesNotExist:
+            pass
+
     
     def __unicode__(self):
         return "Browse image '%s' with internal ID '%s'" % (
@@ -237,17 +271,63 @@ class RegularGridCoordList(models.Model):
     regular_grid_browse = models.ForeignKey(RegularGridBrowse, related_name="coord_lists", verbose_name="RegularGrid Browse", on_delete=models.CASCADE)
     coord_list = models.CharField(max_length=2048) # We just store this information, no need for a usable representation.
 
-# TODO: Vertical curtains are not supported for now.
+
 class VerticalCurtainBrowse(Browse):
     """Vertical curtain Browses with given suitable footprint object.
     
-    Note: Vertical curtains are not supported for now.
-    
     """
-    pass
+    look_angle = models.FloatField()
+    node_number = models.IntegerField()
+    col_row_list = models.CharField(max_length=2048) # We just store this information, no need for a usable representation.
+    coord_list = models.CharField(max_length=2048) # We just store this information, no need for a usable representation.
+
+
+    @property
+    def vertical_grid(self):
+        try:
+            grid = self._vertical_grid
+        except VerticalGrid.DoesNotExist:
+            return None
+
+        try:
+            return grid.verticalregulargrid
+        except VerticalRegularGrid.DoesNotExist:
+            pass
+
+        try:
+            return grid.verticalreferencegrid
+        except VerticalReferenceGrid.DoesNotExist:
+            pass
+
+        try:
+            return grid.verticalcurtainverticalgrid
+        except VerticalCurtainVerticalGrid.DoesNotExist:
+            pass
+
 
 class ModelInGeotiffBrowse(Browse):
     """Rectified Browses given as GeoTIFFs.
     
     """
     pass
+
+
+class VerticalGrid(models.Model):
+    browse = models.OneToOneField(Browse, related_name="_vertical_grid")
+
+
+class VerticalRegularGrid(VerticalGrid):
+    levels_number = models.PositiveIntegerField()
+    base_level_height = models.FloatField()
+    top_level_height = models.FloatField()
+
+
+class VerticalReferenceGrid(VerticalGrid):
+    levels_number = models.PositiveIntegerField()
+    height_levels_list = models.CharField(max_length=2048)
+
+
+class VerticalCurtainVerticalGrid(VerticalGrid):
+    levels_numbers_list = models.CharField(max_length=2048)
+    base_levels_heights_list = models.CharField(max_length=2048)
+    top_levels_heights_list = models.CharField(max_length=2048)
