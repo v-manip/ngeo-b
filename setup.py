@@ -62,7 +62,7 @@ for dirpath, dirnames, filenames in os.walk('ngeo_browse_server'):
         data_files.append([dirpath, [os.path.join(dirpath, f) for f in filenames]])
 
 setup(
-    name='ngEO_Browse_Server',
+    name='ngEO_Browse_Server_vmanip',
     version=version.replace(' ', '-'),
     packages=packages,
     data_files=data_files,
@@ -73,7 +73,7 @@ setup(
     
     install_requires=[
         'django>=1.4.1',
-        'eoxserver>=0.4dev',
+        'eoxserver_vmanip',
         'pytz',
     ],
     
