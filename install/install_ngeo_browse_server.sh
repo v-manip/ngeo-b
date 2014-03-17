@@ -56,11 +56,11 @@ SUBSYSTEM="ngEO Browse Server"
 
 # Enable/disable testing repositories, debug logging, etc. 
 # (false..disable; true..enable)
-TESTING=false
+TESTING=true
 
 # ngEO Browse Server
 NGEOB_INSTALL_DIR="/var/www/ngeo"
-NGEOB_URL="http://ngeo.eox.at"
+NGEOB_URL="http://demo.v-manip.eox.at"
 
 # PostgreSQL/PostGIS database
 DB_NAME="ngeo_browse_server_db"
@@ -73,7 +73,7 @@ MAPCACHE_CONF="mapcache.xml"
 
 # Apache HTTPD
 APACHE_CONF="/etc/httpd/conf.d/010_ngeo_browse_server.conf"
-APACHE_ServerName="ngeo.eox.at"
+APACHE_ServerName="demo.v-manip.eox.at"
 APACHE_ServerAdmin="webmaster@eox.at"
 APACHE_NGEO_BROWSE_ALIAS="/browse"
 APACHE_NGEO_CACHE_ALIAS="/c"
@@ -89,7 +89,7 @@ DJANGO_MAIL="ngeo@eox.at"
 DJANGO_PASSWORD="Aa2phu0s"
 
 # Shibboleth
-USE_SHIBBOLETH=true
+USE_SHIBBOLETH=false
 
 IDP_HOST="um-sso-idp.gmv.com"
 IDP_PORT="443"
@@ -205,7 +205,7 @@ ngeo_install() {
 
     echo "Performing installation step 120"
     # Install packages
-    yum install -y gdal gdal-python postgis Django14 proj-epsg
+    yum install -y gdal gdal-python postgis Django14 proj-epsg python-imaging python-collada python-unittest2
 
 
     #------------------------
@@ -218,24 +218,37 @@ ngeo_install() {
     echo "Performing installation step 140"
     # EOX
     rpm -Uvh --replacepkgs http://yum.packages.eox.at/el/eox-release-6-2.noarch.rpm
-    if "$TESTING" ; then
+    #TODO: Enable only in testing mode once stable enough.
+    #if "$TESTING" ; then
         sed -e 's/^enabled=0/enabled=1/' -i /etc/yum.repos.d/eox-testing.repo
-    fi
+    #fi
+    # Enable EOX unstable repository
+    cp /etc/yum.repos.d/eox-testing.repo /etc/yum.repos.d/eox-unstable.repo
+    sed -e 's/testing/unstable/' -i /etc/yum.repos.d/eox-unstable.repo
+    sed -e 's/^enabled=0/enabled=1/' -i /etc/yum.repos.d/eox-unstable.repo
+
 
     echo "Performing installation step 150"
     # Set includepkgs in EOX Stable
-    if ! grep -Fxq "includepkgs=EOxServer mapserver mapserver-python mapcache libxml2 libxml2-python libxerces-c-3_1" /etc/yum.repos.d/eox.repo ; then
-        sed -e 's/^\[eox\]$/&\nincludepkgs=EOxServer mapserver mapserver-python mapcache libxml2 libxml2-python libxerces-c-3_1/' -i /etc/yum.repos.d/eox.repo
+    if ! grep -Fxq "includepkgs=mapserver mapserver-python mapcache libxml2 libxml2-python libxerces-c-3_1" /etc/yum.repos.d/eox.repo ; then
+        sed -e 's/^\[eox\]$/&\nincludepkgs=mapserver mapserver-python mapcache libxml2 libxml2-python libxerces-c-3_1/' -i /etc/yum.repos.d/eox.repo
     fi
-    if ! grep -Fxq "includepkgs=ngEO_Browse_Server" /etc/yum.repos.d/eox.repo ; then
-        sed -e 's/^\[eox-noarch\]$/&\nincludepkgs=ngEO_Browse_Server/' -i /etc/yum.repos.d/eox.repo
+    if ! grep -Fxq "includepkgs=" /etc/yum.repos.d/eox.repo ; then
+        sed -e 's/^\[eox-noarch\]$/&\nincludepkgs=/' -i /etc/yum.repos.d/eox.repo
     fi
     # Set includepkgs in EOX Testing
-    if ! grep -Fxq "includepkgs=EOxServer mapcache" /etc/yum.repos.d/eox-testing.repo ; then
-        sed -e 's/^\[eox-testing\]$/&\nincludepkgs=EOxServer mapcache/' -i /etc/yum.repos.d/eox-testing.repo
+    if ! grep -Fxq "includepkgs=mapcache" /etc/yum.repos.d/eox-testing.repo ; then
+        sed -e 's/^\[eox-testing\]$/&\nincludepkgs=mapcache/' -i /etc/yum.repos.d/eox-testing.repo
     fi
-    if ! grep -Fxq "includepkgs=ngEO_Browse_Server" /etc/yum.repos.d/eox-testing.repo ; then
-        sed -e 's/^\[eox-testing-noarch\]$/&\nincludepkgs=ngEO_Browse_Server/' -i /etc/yum.repos.d/eox-testing.repo
+    if ! grep -Fxq "includepkgs=" /etc/yum.repos.d/eox-testing.repo ; then
+        sed -e 's/^\[eox-testing-noarch\]$/&\nincludepkgs=/' -i /etc/yum.repos.d/eox-testing.repo
+    fi
+    # Set includepkgs in EOX unstable
+    if ! grep -Fxq "includepkgs=EOxServer_vmanip" /etc/yum.repos.d/eox-unstable.repo ; then
+        sed -e 's/^\[eox-unstable\]$/&\nincludepkgs=EOxServer_vmanip/' -i /etc/yum.repos.d/eox-unstable.repo
+    fi
+    if ! grep -Fxq "includepkgs=V-MANIP_Server ngEO_Browse_Server_vmanip" /etc/yum.repos.d/eox-unstable.repo ; then
+        sed -e 's/^\[eox-unstable-noarch\]$/&\nincludepkgs=V-MANIP_Server ngEO_Browse_Server_vmanip/' -i /etc/yum.repos.d/eox-unstable.repo
     fi
 
     echo "Performing installation step 160"
@@ -247,8 +260,7 @@ ngeo_install() {
 
     echo "Performing installation step 170"
     # Install packages
-    yum install -y libxml2 libxml2-python mapserver mapserver-python mapcache \
-                   ngEO_Browse_Server EOxServer
+    yum install -y libxml2 libxml2-python mapserver mapserver-python mapcache V-MANIP_Server ngEO_Browse_Server_vmanip EOxServer_vmanip
 
     echo "Performing installation step 180"
     # Configure PostgreSQL/PostGIS database
@@ -311,10 +323,10 @@ EOF
         # Configure DBs
         NGEOB_INSTALL_DIR_ESCAPED=`echo $NGEOB_INSTALL_DIR | sed -e 's/\//\\\&/g'`
         sed -e "s/'ENGINE': 'django.contrib.gis.db.backends.spatialite',                  # Use 'spatialite' or change to 'postgis'./'ENGINE': 'django.contrib.gis.db.backends.postgis',/" -i ngeo_browse_server_instance/settings.py
-        sed -e "s/'NAME': '$NGEOB_INSTALL_DIR_ESCAPED\/ngeo_browse_server_instance\/ngeo_browse_server_instance\/data\/data.sqlite',  # Or path to database file if using spatialite./'NAME': '$DB_NAME',/" -i ngeo_browse_server_instance/settings.py
+        sed -e "s/'NAME': join(PROJECT_DIR, 'data\/config.sqlite'),                        # Or path to database file if using spatialite./'NAME': '$DB_NAME',/" -i ngeo_browse_server_instance/settings.py
         sed -e "s/'USER': '',                                                             # Not used with spatialite./'USER': '$DB_USER',/" -i ngeo_browse_server_instance/settings.py
         sed -e "s/'PASSWORD': '',                                                         # Not used with spatialite./'PASSWORD': '$DB_PASSWORD',/" -i ngeo_browse_server_instance/settings.py
-        sed -e "/#'TEST_NAME': '$NGEOB_INSTALL_DIR_ESCAPED\/ngeo_browse_server_instance\/ngeo_browse_server_instance\/data\/test-data.sqlite', # Required for certain test cases, but slower!/d" -i ngeo_browse_server_instance/settings.py
+        sed -e "/#'TEST_NAME': join(PROJECT_DIR, 'data\/test-config.sqlite'),             # Required for certain test cases, but slower!/d" -i ngeo_browse_server_instance/settings.py
         sed -e "/'HOST': '',                                                             # Set to empty string for localhost. Not used with spatialite./d" -i ngeo_browse_server_instance/settings.py
         sed -e "/'PORT': '',                                                             # Set to empty string for default. Not used with spatialite./d" -i ngeo_browse_server_instance/settings.py
         sed -e "s/#'TEST_NAME': '$NGEOB_INSTALL_DIR_ESCAPED\/ngeo_browse_server_instance\/ngeo_browse_server_instance\/data\/test-mapcache.sqlite',/'TEST_NAME': '$NGEOB_INSTALL_DIR_ESCAPED\/ngeo_browse_server_instance\/ngeo_browse_server_instance\/data\/test-mapcache.sqlite',/" -i ngeo_browse_server_instance/settings.py
@@ -866,8 +878,8 @@ EOF
     <Directory "$NGEOB_INSTALL_DIR">
         Options Indexes FollowSymLinks
         AllowOverride None
-        Order Deny,Allow
-        Deny from all
+        Order Allow,Deny
+        Allow from all
     </Directory>
 
     Alias /static "$NGEOB_INSTALL_DIR/ngeo_browse_server_instance/ngeo_browse_server_instance/static"
@@ -881,6 +893,9 @@ EOF
         WSGIProcessGroup ngeob
         Order Allow,Deny
         Allow from all
+        Header set Access-Control-Allow-Origin *
+        Header set Access-Control-Allow-Headers if-modified-since
+        Header add Access-Control-Allow-Headers range
     </Directory>
 
     DavLockDB "$NGEOB_INSTALL_DIR/dav/DavLock"
@@ -1101,9 +1116,9 @@ EOF
     echo "Performing uninstallation step 80"
     echo "If any of the data locations has been changed delete all browse data there."
 
-    echo "Performing uninstallation step 90"
-    echo "Delete extra Yum repositories"
-    yum erase -y epel-release elgis-release eox-release
+#    echo "Performing uninstallation step 90"
+#    echo "Delete extra Yum repositories"
+#    yum erase -y epel-release elgis-release eox-release
 
     echo "Performing uninstallation step 100"
     echo "Stop Apache HTTP server"#
@@ -1114,12 +1129,12 @@ EOF
         chkconfig httpd off
     fi
 
-    echo "Performing uninstallation step 110"
-    echo "Remove packages"
-    yum erase -y  python-lxml mod_wsgi httpd postgresql pytz python-psycopg2 \
-                  gdal gdal-python postgis mapserver Django14 mapserver-python \
-                  mapcache ngEO_Browse_Server EOxServer libxerces-c-3_1 \
-                  shibboleth mod_ssl
+#    echo "Performing uninstallation step 110"
+#    echo "Remove packages"
+#    yum erase -y  python-lxml mod_wsgi httpd postgresql pytz python-psycopg2 \
+#                  gdal gdal-python postgis mapserver Django14 mapserver-python \
+#                  mapcache ngEO_Browse_Server EOxServer libxerces-c-3_1 \
+#                  shibboleth mod_ssl
 
     echo "Finished $SUBSYSTEM uninstallation"
 
