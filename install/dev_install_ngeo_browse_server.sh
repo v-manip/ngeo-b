@@ -958,6 +958,9 @@ EOF
         Options +Indexes
         Order allow,deny
         Allow from all
+        Header set Access-Control-Allow-Origin *
+        Header set Access-Control-Allow-Headers if-modified-since
+        Header add Access-Control-Allow-Headers range
     </Directory>
 EOF
 
