@@ -1133,6 +1133,10 @@ EOF
     if [ -d "${NGEOB_INSTALL_DIR}" ] ; then
         rmdir "${NGEOB_INSTALL_DIR}"
     fi
+    if [ -d "/var/vmanip" ] ; then
+        rm -rf /var/vmanip
+    fi
+
 
     echo "Performing uninstallation step 70"
     echo "Delete Apache HTTP server configuration"
