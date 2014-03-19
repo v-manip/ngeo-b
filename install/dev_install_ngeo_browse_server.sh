@@ -942,7 +942,6 @@ EOF
         Order allow,deny
         Allow from all
     </Directory>
-
 EOF
 
         # If shibboleth is not installation enable MapCache via http
