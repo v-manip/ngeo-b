@@ -252,6 +252,17 @@ ngeo_install() {
     # Install packages
     yum install -y libxml2 libxml2-python mapserver mapserver-python mapcache
 
+    # Creating folders needed for v-manip server
+
+    # Create gltf folder, which is then exported via httpd
+    mkdir -p /var/www/cache/gltf
+    chown apache:apache /var/www/cache/gltf
+
+    # Link necessary libraries to expected location
+    mkdir -p /var/vmanip
+    ln -s ${CLONEDIR}/lib /var/vmanip/lib
+    ln -s ${CLONEDIR}/data /var/vmanip/data
+
     # Install software in develop mode
 
     yum install -y gdal-devel make gcc python-devel
@@ -923,6 +934,15 @@ EOF
         Order Allow,Deny
         Deny from all
     </Directory>
+
+    Alias "/gltf" "/var/www/cache/gltf"
+    <Directory "/var/www/cache/gltf">
+        AllowOverride None
+        Options +Indexes
+        Order allow,deny
+        Allow from all
+    </Directory>
+
 EOF
 
         # If shibboleth is not installation enable MapCache via http
