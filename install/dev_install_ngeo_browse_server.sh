@@ -420,6 +420,23 @@ EOF
     <lock_dir>/tmp</lock_dir>
 EOF
 
+        # Create Cloudsat sqlite.db
+        cat << EOF > /tmp/bootstrap_cloudsat.txt
+create table if not exists tiles(
+                tileset text,
+                grid text,
+                x integer,
+                y integer,
+                z integer,
+                data text,
+                dim text,
+                ctime datetime,
+                primary key(tileset,grid,x,y,z,dim)
+            );
+EOF
+        sqlite3 "$MAPCACHE_DIR/Cloudsat.sqlite" < /tmp/bootstrap_cloudsat.txt
+        rm /tmp/bootstrap_cloudsat.txt
+
         if "$TESTING" ; then
             cat << EOF >> "$MAPCACHE_DIR/$MAPCACHE_CONF"
 
