@@ -255,16 +255,12 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                         level_0_num_tiles_y = 2  # rows
                         level_0_num_tiles_x = 4  # cols
 
-                        seed_level = range(1,3)
-
-                        #logger.debug("Result %s"%result)
+                        seed_level = range(browse_layer.lowest_map_level, browse_layer.highest_map_level)
 
                         for tileLevel in seed_level:
 
-                            #logger.debug("tile level '%s,'." % (tileLevel))
-
-                            tiles_x = level_0_num_tiles_x * pow(2, tileLevel-1);
-                            tiles_y = level_0_num_tiles_y * pow(2, tileLevel-1)
+                            tiles_x = level_0_num_tiles_x * pow(2, tileLevel);
+                            tiles_y = level_0_num_tiles_y * pow(2, tileLevel)
 
                             #find which tiles are crossed by extent
                             tile_width = 360 / (tiles_x)
@@ -281,12 +277,9 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                                     north = 90 - (row * tile_height)
                                     south = north - tile_height
 
-
-                                    #if parsed_browse.extent crosses tile:
                                     if (coverage.footprint.intersects(Polygon.from_bbox( (west,south,east,north) ))):
 
                                         try:
-                                            
                                             # NOTE: The MeshFactory ignores time
                                             time = (isoformat(result.time_interval[0]) + "/" + isoformat(result.time_interval[1]))
                                             
@@ -300,6 +293,8 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
 
                                         except Exception, e:
                                             logger.warn("Seeding failed: %s" % str(e))
+
+                        transaction.commit() 
                                             
 
                     
