@@ -368,7 +368,7 @@ EOF
 
     echo "Performing installation step 210"
     # MapCache
-    if [ ! -d "$MAPCACHE_DIR" ] ; then
+    if [ ! -f "$MAPCACHE_DIR/$MAPCACHE_CONF" ] ; then
         echo "Configuring MapCache."
 
         mkdir -p "$MAPCACHE_DIR"
