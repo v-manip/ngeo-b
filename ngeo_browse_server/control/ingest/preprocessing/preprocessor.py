@@ -27,7 +27,12 @@
 #-------------------------------------------------------------------------------
 
 
+from os.path import splitext
+import shutil
 
+from PIL import Image
+import numpy as np
+from django.contrib.gis.geos import MultiPolygon, Polygon, LineString
 from django.contrib.gis.geos import (
     GEOSGeometry, MultiPolygon, Polygon, LinearRing, 
 )
@@ -37,19 +42,11 @@ from eoxserver.processing.preprocessing import (
 )
 from eoxserver.processing.preprocessing.optimization import *
 from eoxserver.processing.preprocessing.util import create_mem_copy
+from eoxserver.resources.coverages.crss import crs_tolerance
 
 from ngeo_browse_server.control.ingest.preprocessing.merge import (
     GDALDatasetMerger, GDALGeometryMaskMergeSource
 )
-
-from os.path import splitext
-import shutil
-from django.contrib.gis.geos import MultiPolygon, Polygon, LineString
-
-from eoxserver.resources.coverages.crss import crs_tolerance
-
-from PIL import Image
-import numpy as np
 
 
 class NGEOPreProcessor(WMSPreProcessor):
@@ -237,3 +234,39 @@ class VerticalCurtainPreProcessResult(object):
     @property
     def ground_path(self):
         return self.geo_reference.line
+
+
+class VolumePreProcessor(object):
+    def __init__(self):
+
+        pass
+
+    def generate_filename(self, output_filename):
+        # TODO: use correct filename extension
+        return splitext(output_filename)[0] + ".tif"
+
+
+    def process(self, input_filename, output_filename, geo_reference,
+                generate_metadata=False, merge_with=None, original_footprint=None):
+
+        shutil.copyfile(input_filename, output_filename)
+
+        ds = gdal.Open(output_filename)
+        numbands = ds.RasterCount
+        del ds
+
+        return VolumePreProcessResult(numbands, geo_reference)
+
+
+class VolumePreProcessResult(object):
+    def __init__(self, num_bands, geo_reference):
+        self.num_bands = num_bands
+        self.geo_reference = geo_reference
+
+    @property
+    def footprint_geom(self):
+        # TODO: Check if extent of footprint
+        e = self.geo_reference
+        mp = MultiPolygon(Polygon.from_bbox((e.minx, e.miny, e.maxx, e.maxy)))
+        mp.srid = e.srid
+        return mp

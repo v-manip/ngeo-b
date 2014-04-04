@@ -237,10 +237,10 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     if vertical_grid is None:    
         coverage = eoxs_models.RectifiedDataset.objects.create(**kwargs)
     elif not browse.geo_type == "verticalCurtainBrowse":
-        kwargs["look_angle"] = browse.look_angle
         coverage = eoxs_models.CubeCoverage.objects.create(**kwargs)
 
     else:
+        kwargs["look_angle"] = browse.look_angle
         coverage = eoxs_models.CurtainCoverage.objects.create(**kwargs)
         
 

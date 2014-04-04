@@ -85,7 +85,8 @@ from ngeo_browse_server.control.queries import (
     get_existing_browse, create_browse_report, create_browse, remove_browse
 )
 from ngeo_browse_server.control.ingest.preprocessing.preprocessor import (
-    NGEOPreProcessor, VerticalCurtainPreprocessor, VerticalCurtainGeoReference
+    NGEOPreProcessor, VerticalCurtainPreprocessor, VerticalCurtainGeoReference,
+    VolumePreProcessor
 )
 
 
@@ -124,7 +125,9 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
     # create the required preprocessor/format selection
     format_selection = get_format_selection("GTiff",
                                             **get_format_config(config))
-    if do_preprocessing and not browse_layer.contains_vertical_curtains:
+
+    if do_preprocessing and not browse_layer.contains_vertical_curtains \
+        and not browse_layer.contains_volumes:
         # add config parameters and custom params
         params = get_optimization_config(config)
         
@@ -176,6 +179,9 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
             rad_max = "max"
 
         preprocessor = VerticalCurtainPreprocessor(**params)
+
+    elif browse_layer.contains_volumes:
+        preprocessor = VolumePreProcessor()
 
     else:
         preprocessor = None # TODO: CopyPreprocessor
@@ -370,6 +376,12 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
     replaced a previous browse entry.
     """
     
+
+
+    # TODO: if curtain: check that layer allows curtains
+    # TODO: same for volumes
+
+
     logger.info("Ingesting browse '%s'."
                 % (parsed_browse.browse_identifier or "<<no ID>>"))
     
@@ -520,12 +532,14 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
                     True, merge_with, merge_footprint
                 )
             except (RuntimeError, GCPTransformException), e:
-                raise IngestionException(str(e))
+                e_info = sys.exc_info()
+                raise IngestionException(str(e)), None, e_info[2]
             
             # validate preprocess result
-            if result.num_bands not in (1, 3, 4): # color index, RGB, RGBA
-                raise IngestionException("Processed browse image has %d bands."
-                                         % result.num_bands)
+            if not browse_layer.contains_volumes:
+                if result.num_bands not in (1, 3, 4): # color index, RGB, RGBA
+                    raise IngestionException("Processed browse image has %d bands."
+                                             % result.num_bands)
             
             logger.info("Creating database models.")
             extent, time_interval = create_browse(
