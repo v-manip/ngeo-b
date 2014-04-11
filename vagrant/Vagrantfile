@@ -25,7 +25,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.network :forwarded_port, guest: 80, host: 3080
   config.vm.network :forwarded_port, guest: 443, host: 3443
   config.vm.network :forwarded_port, guest: 8000, host: 38000
-
+  config.vm.network :public_network
+  
   # Share an additional folder to the guest VM. The first argument is
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
@@ -41,6 +42,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.synced_folder  "../ngeo-b_autotest", "/var/ngeob_autotest"
   config.vm.synced_folder  "./shares/data", "/var/vmanip/data"
   config.vm.synced_folder  "./shares/lib", "/var/vmanip/lib"
+  config.vm.synced_folder  "./shares/shibboleth", "/etc/shibboleth"
 
   # Shell provisioning
   config.vm.provision "shell", path: "scripts/selinux.sh"
@@ -50,6 +52,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.provision "shell", path: "scripts/development_installation.sh"
   config.vm.provision "shell", path: "scripts/httpd.sh"
   config.vm.provision "shell", path: "scripts/load_test_data.sh"
+  config.vm.provision "shell", path: "scripts/shibboleth.sh"
   config.vm.provision "shell", path: "scripts/user_custom.sh"
 
   # Use package caching https://github.com/fgrehm/vagrant-cachier
