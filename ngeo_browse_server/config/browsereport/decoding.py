@@ -142,9 +142,13 @@ def decode_coord_list(coord_list, swap_axes=False):
 
 
 def decode_grid(grid_elem):
-    if grid_elem.tag == ns_rep("verticalCurtainReferenceGrid"):
+    if grid_elem.tag in (ns_rep("verticalCurtainReferenceGrid"), ns_rep("verticalReferenceGrid")):
         return data.VerticalReferenceGrid(
             **vertical_reference_grid_decoder(grid_elem)
+        )
+    if grid_elem.tag == ns_rep("verticalRegularGrid"):
+        return data.VerticalRegularGrid(
+            **vertical_regular_grid_decoder(grid_elem)
         )
     elif grid_elem.tag == ns_rep("verticalCurtainVerticalGrid"):
         return data.VerticalCurtainVerticalGrid(
@@ -171,6 +175,7 @@ browse_decoder = XMLDecoder({
 
 rectified_decoder = XMLDecoder({
     "coord_list": "rep:coordList/text()",
+    "vertical_grid": ("rep:verticalRegularGrid|rep:verticalReferenceGrid", decode_grid)
 }, {"rep": ns_rep.uri})
 
 

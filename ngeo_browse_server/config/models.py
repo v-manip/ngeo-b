@@ -77,7 +77,8 @@ class BrowseLayer(models.Model):
             ("PRIVATE", "Private"),
         )
     )
-    contains_vertical_curtains = models.BooleanField(default=False) # TODO: Fixed to False as vertical curtains are not supported for now.
+    contains_vertical_curtains = models.BooleanField(default=False)
+    contains_volumes = models.BooleanField(default=False)
     r_band = models.IntegerField(null=True, blank=True, default=None)
     g_band = models.IntegerField(null=True, blank=True, default=None)
     b_band = models.IntegerField(null=True, blank=True, default=None)
@@ -121,6 +122,10 @@ class BrowseLayer(models.Model):
         if self.highest_map_level < self.lowest_map_level:
             raise ValidationError("Highest map level number must be greater "
                                   "than lowest map level number.")
+
+        if self.contains_volumes and self.contains_vertical_curtains:
+            raise ValidationError("Cannot contain both vertical curtains and "
+                                  "volumes.")
         # TODO: more checks
 
 
