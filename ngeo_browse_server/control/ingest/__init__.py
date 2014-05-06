@@ -232,7 +232,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                     
                     logger.info("Commited changes to database.")
 
-                    if not browse_layer.contains_vertical_curtains:
+                    if not browse_layer.contains_vertical_curtains and not browse_layer.contains_volumes:
                     
                         for minx, miny, maxx, maxy, start_time, end_time in seed_areas:
                             try:
@@ -254,7 +254,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                             except Exception, e:
                                 logger.warn("Seeding failed: %s" % str(e))
                     
-                    else:
+                    elif not browse_layer.contains_volumes:
 
                         host = "http://localhost:8000"
 
@@ -301,6 +301,9 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                                             logger.warn("Seeding failed: %s" % str(e))
 
                         transaction.commit() 
+
+                    else:
+                        pass
                                             
 
                     
