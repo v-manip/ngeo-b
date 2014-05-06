@@ -9,8 +9,8 @@
 #to the folder '/opt/shibboleth-idp/conf' on the IDP machine."
 
 USE_SHIBBOLETH=true    
-SP_HOST="10.70.10.80"         #probably something like "sp.eox.at" in the future
-IDP_HOST="192.168.16.147"     #probably something like "idp.eox.at" in the future    
+SP_HOST="192.168.122.191"         #probably something like "sp.eox.at" in the future
+IDP_HOST="188.20.233.166"     #probably something like "idp.eox.at" in the future    
 PROTECTED_DIR="/browse"
 
 SP_KEY_FILE="/etc/shibboleth/sp-key.pem"                 #SP key 
