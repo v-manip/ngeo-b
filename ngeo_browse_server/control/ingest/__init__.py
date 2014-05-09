@@ -256,7 +256,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                     
                     elif not browse_layer.contains_volumes:
 
-                        host = "http://localhost:80"
+                        host = "http://localhost/browse/ows"
 
                         level_0_num_tiles_y = 2  # rows
                         level_0_num_tiles_x = 4  # cols
@@ -289,7 +289,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                                             # NOTE: The MeshFactory ignores time
                                             time = (isoformat(result.time_interval[0]) + "/" + isoformat(result.time_interval[1]))
                                             
-                                            baseurl = host + '/browse/ows?service=W3DS&request=GetTile&version=1.0.0&crs=EPSG:4326&layer={0}&style=default&format=image/png'.format(browse_layer.id)
+                                            baseurl = host + '?service=W3DS&request=GetTile&version=1.0.0&crs=EPSG:4326&layer={0}&style=default&format=image/png'.format(browse_layer.id)
                                             url = '{0}&tileLevel={1}&tilecol={2}&tilerow={3}&time={4}'.format(baseurl, tileLevel, col, row, time)
 
                                             logger.info('Seeding call to URL: %s' % (url,))
@@ -722,6 +722,10 @@ def _georef_from_parsed(parsed_browse):
     elif parsed_browse.geo_type == "verticalCurtainBrowse":
         pixels = decode_coord_list(parsed_browse.col_row_list)
         coord_list = decode_coord_list(parsed_browse.coord_list, swap_axes)
+
+        if _coord_list_crosses_dateline(coord_list, CRS_BOUNDS[srid]):
+            logger.info("Vertical curtain footprint crosses the dateline. Normalizing it.")
+            coord_list = _unwrap_coord_list(coord_list, CRS_BOUNDS[srid])
 
         gcps = [(x, y, pixel, line) 
                 for (x, y), (pixel, line) in zip(coord_list, pixels)]
