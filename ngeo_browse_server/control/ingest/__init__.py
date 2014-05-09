@@ -256,7 +256,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                     
                     elif not browse_layer.contains_volumes:
 
-                        host = "http://localhost:8000"
+                        host = "http://localhost:80"
 
                         level_0_num_tiles_y = 2  # rows
                         level_0_num_tiles_x = 4  # cols
@@ -289,7 +289,7 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                                             # NOTE: The MeshFactory ignores time
                                             time = (isoformat(result.time_interval[0]) + "/" + isoformat(result.time_interval[1]))
                                             
-                                            baseurl = host + '?service=W3DS&request=GetTile&version=1.0.0&crs=EPSG:4326&layer={0}&style=default&format=image/png'.format(browse_layer.id)
+                                            baseurl = host + '/browse/ows?service=W3DS&request=GetTile&version=1.0.0&crs=EPSG:4326&layer={0}&style=default&format=image/png'.format(browse_layer.id)
                                             url = '{0}&tileLevel={1}&tilecol={2}&tilerow={3}&time={4}'.format(baseurl, tileLevel, col, row, time)
 
                                             logger.info('Seeding call to URL: %s' % (url,))
