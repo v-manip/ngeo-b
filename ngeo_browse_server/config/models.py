@@ -216,7 +216,10 @@ class Browse(models.Model):
     class Meta:
         verbose_name = "Browse image"
         verbose_name_plural = "Browse images"
-        unique_together = (("start_time", "end_time", "browse_layer"),)
+        # TODO: This should not be commented out, it is in theory a requirement
+        #        for browses. For now this was removed in order to allow various
+        #        volume coverages at the same time and layer
+        #unique_together = (("start_time", "end_time", "browse_layer"),)
     
     def clean(self):
         # custom model validation

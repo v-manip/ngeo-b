@@ -108,7 +108,7 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         browse_model = _create_model(browse, browse_report_model, 
                                      browse_layer_model, coverage_id,
                                      models.RectifiedBrowse)
-        browse_model.full_clean()
+        browse_model.full_clean(exclude=("start_time","end_time"))
         browse_model.save()
         
     elif browse.geo_type == "footprintBrowse":
@@ -305,7 +305,7 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         source=source
     )
     
-    if len(times_qs) > 0:
+    if len(times_qs) > 0 and not browse_layer_model.contains_volumes:
         # If there are , merge them to one
         logger.info("Merging %d Time entries." % (len(times_qs) + 1))
         for time_model in times_qs:
