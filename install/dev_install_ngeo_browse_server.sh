@@ -163,7 +163,7 @@ ngeo_install() {
 
     echo "Performing installation step 50"
     # Install packages
-    yum install -y python-lxml mod_wsgi httpd postgresql-server python-psycopg2 pytz
+    yum install -y python-lxml mod_wsgi httpd postgresql-server python-psycopg2 pytz 
 
     echo "Performing installation step 60"
     # Permanently start PostgreSQL
@@ -207,7 +207,7 @@ ngeo_install() {
 
     echo "Performing installation step 120"
     # Install packages
-    yum install -y gdal gdal-python postgis Django14 proj-epsg python-imaging python-collada python-unittest2
+    yum install -y gdal gdal-python postgis Django14 proj-epsg python-imaging python-collada python-unittest2 numpy scipy sympy python-setuptools
 
 
     #------------------------

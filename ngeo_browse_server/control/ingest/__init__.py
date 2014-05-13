@@ -441,7 +441,7 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
     try:
         # check if a browse already exists and delete it in order to replace it
         existing_browse_model = get_existing_browse(parsed_browse, browse_layer.id)
-        if existing_browse_model:
+        if existing_browse_model and not browse_layer.contains_volumes:
             identifier = existing_browse_model.browse_identifier
 
             # if the to be ingested browse is equal to an already stored one
