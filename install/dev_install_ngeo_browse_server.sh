@@ -930,6 +930,8 @@ EOF
         Header set Access-Control-Allow-Origin *
         Header set Access-Control-Allow-Headers if-modified-since
         Header add Access-Control-Allow-Headers range
+        Header set Access-Control-Expose-Headers Content-id
+        Header add Access-Control-Expose-Headers Content-Disposition
     </Directory>
 
     DavLockDB "$NGEOB_INSTALL_DIR/dav/DavLock"

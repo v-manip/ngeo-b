@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <mapcache>
   <!-- format setup -->
   <default_format>mixed</default_format>
@@ -25,4 +24,60 @@
   <!-- misc setup -->
   <errors>report</errors>
   <lock_dir>/tmp</lock_dir>
+  <cache type="sqlite3" name="ALARO_Specific_Humidity">
+    <dbfile>/var/www/cache/ALARO_Specific_Humidity.sqlite</dbfile>
+    <detect_blank>true</detect_blank>
+  </cache>
+  <source type="wms" name="ALARO_Specific_Humidity">
+    <getmap>
+      <params>
+        <LAYERS>ALARO_Specific_Humidity</LAYERS>
+        <TRANSPARENT>true</TRANSPARENT>
+      </params>
+    </getmap>
+    <http>
+      <url>http://localhost/browse/ows?</url>
+    </http>
+  </source>
+  <tileset name="ALARO_Specific_Humidity">
+    <source>ALARO_Specific_Humidity</source>
+    <cache>ALARO_Specific_Humidity</cache>
+    <grid max-cached-zoom="0" out-of-zoom-strategy="reassemble">WGS84</grid>
+    <format>mixed</format>
+    <metatile>8 8</metatile>
+    <expires>3600</expires>
+    <read-only>true</read-only>
+    <timedimension default="2010" type="sqlite">
+      <dbfile>/var/ngeob_autotest/data/mapcache.sqlite</dbfile>
+      <query>select strftime('%Y-%m-%dT%H:%M:%SZ',start_time)||'/'||strftime('%Y-%m-%dT%H:%M:%SZ',end_time) from time where source_id=:tileset and start_time&amp;lt;=datetime(:end_timestamp,'unixepoch') and end_time&amp;gt;=datetime(:start_timestamp,'unixepoch') and maxx&amp;gt;=:minx and maxy&amp;gt;=:miny and minx&amp;lt;=:maxx and miny&amp;lt;=:maxy order by end_time desc limit 100</query>
+    </timedimension>
+  </tileset>
+  <cache type="sqlite3" name="ALARO_Temperature_isobaric">
+    <dbfile>/var/www/cache/ALARO_Temperature_isobaric.sqlite</dbfile>
+    <detect_blank>true</detect_blank>
+  </cache>
+  <source type="wms" name="ALARO_Temperature_isobaric">
+    <getmap>
+      <params>
+        <LAYERS>ALARO_Temperature_isobaric</LAYERS>
+        <TRANSPARENT>true</TRANSPARENT>
+      </params>
+    </getmap>
+    <http>
+      <url>http://localhost/browse/ows?</url>
+    </http>
+  </source>
+  <tileset name="ALARO_Temperature_isobaric">
+    <source>ALARO_Temperature_isobaric</source>
+    <cache>ALARO_Temperature_isobaric</cache>
+    <grid max-cached-zoom="0" out-of-zoom-strategy="reassemble">WGS84</grid>
+    <format>mixed</format>
+    <metatile>8 8</metatile>
+    <expires>3600</expires>
+    <read-only>true</read-only>
+    <timedimension default="2010" type="sqlite">
+      <dbfile>/var/ngeob_autotest/data/mapcache.sqlite</dbfile>
+      <query>select strftime('%Y-%m-%dT%H:%M:%SZ',start_time)||'/'||strftime('%Y-%m-%dT%H:%M:%SZ',end_time) from time where source_id=:tileset and start_time&amp;lt;=datetime(:end_timestamp,'unixepoch') and end_time&amp;gt;=datetime(:start_timestamp,'unixepoch') and maxx&amp;gt;=:minx and maxy&amp;gt;=:miny and minx&amp;lt;=:maxx and miny&amp;lt;=:maxy order by end_time desc limit 100</query>
+    </timedimension>
+  </tileset>
 </mapcache>
