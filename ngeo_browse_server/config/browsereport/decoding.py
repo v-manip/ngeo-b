@@ -175,7 +175,7 @@ browse_decoder = XMLDecoder({
 
 rectified_decoder = XMLDecoder({
     "coord_list": "rep:coordList/text()",
-    "vertical_grid": ("rep:verticalRegularGrid|rep:verticalReferenceGrid", decode_grid)
+    "vertical_grid": ("rep:verticalRegularGrid|rep:verticalReferenceGrid", decode_grid, "?")
 }, {"rep": ns_rep.uri})
 
 
