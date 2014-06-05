@@ -542,10 +542,11 @@ def add_browse_layer(browse_layer, config=None):
     eoxs_models.DatasetSeries.objects.create(identifier=browse_layer.id)
 
     # remove source from mapcache sqlite
-    mapcache_models.Source.objects.create(name=browse_layer.id)
+    if not browse_layer.contains_volumes and not browse_layer.contains_vertical_curtains:
+        mapcache_models.Source.objects.create(name=browse_layer.id)
 
-    # add an XML section to the mapcache config xml
-    add_mapcache_layer_xml(browse_layer, config)
+        # add an XML section to the mapcache config xml
+        add_mapcache_layer_xml(browse_layer, config)
 
     # create a base directory for optimized files
     directory = get_project_relative_path(join(
@@ -598,9 +599,10 @@ def update_browse_layer(browse_layer, config=None):
     browse_layer_model.full_clean()
     browse_layer_model.save()
 
-    if refresh_mapcache_xml:
-        remove_mapcache_layer_xml(browse_layer, config)
-        add_mapcache_layer_xml(browse_layer, config)
+    if not browse_layer.contains_volumes and not browse_layer.contains_vertical_curtains:
+        if refresh_mapcache_xml:
+            remove_mapcache_layer_xml(browse_layer, config)
+            add_mapcache_layer_xml(browse_layer, config)
 
 
 def delete_browse_layer(browse_layer, config=None):
@@ -611,22 +613,23 @@ def delete_browse_layer(browse_layer, config=None):
     models.BrowseLayer.objects.get(id=browse_layer.id).delete()
     eoxs_models.DatasetSeries.objects.get(identifier=browse_layer.id).delete()
 
-    # remove source from mapcache sqlite
-    mapcache_models.Source.objects.get(name=browse_layer.id).delete()
+    if not browse_layer.contains_volumes and not browse_layer.contains_vertical_curtains:
+        # remove source from mapcache sqlite
+        mapcache_models.Source.objects.get(name=browse_layer.id).delete()
 
-    # remove browse layer from mapcache XML
-    remove_mapcache_layer_xml(browse_layer, config)
+        # remove browse layer from mapcache XML
+        remove_mapcache_layer_xml(browse_layer, config)
 
-    # delete browse layer cache
-    try:
-        os.remove(get_tileset_path(browse_layer.browse_type))
-    except OSError:
-        # when no browse was ingested, the sqlite file does not exist, so just
-        # issue a warning
-        logger.warning(
-            "Could not remove tileset '%s'." 
-            % get_tileset_path(browse_layer.browse_type)
-        )
+        # delete browse layer cache
+        try:
+            os.remove(get_tileset_path(browse_layer.browse_type))
+        except OSError:
+            # when no browse was ingested, the sqlite file does not exist, so just
+            # issue a warning
+            logger.warning(
+                "Could not remove tileset '%s'." 
+                % get_tileset_path(browse_layer.browse_type)
+            )
 
     # delete all optimzed files by deleting the whole directory of the layer
     optimized_dir = get_project_relative_path(join(
