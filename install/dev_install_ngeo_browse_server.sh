@@ -207,7 +207,7 @@ ngeo_install() {
 
     echo "Performing installation step 120"
     # Install packages
-    yum install -y gdal gdal-python postgis Django14 proj-epsg python-imaging python-collada python-unittest2 numpy scipy sympy python-setuptools
+    yum install -y gdal gdal-python postgis Django14 proj-epsg python-imaging python-collada python-unittest2 numpy scipy sympy python-setuptools mesa-libGLU.x86_64 mesa-libGL.x86_64 SDL.x86_64
 
 
     #------------------------
