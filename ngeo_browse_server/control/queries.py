@@ -293,53 +293,54 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     extent = coverage.extent
     minx, miny, maxx, maxy = extent
     start_time, end_time = browse.start_time, browse.end_time
-    
-    # create mapcache models
-    source, _ = mapcache_models.Source.objects.get_or_create(
-        name=browse_layer_model.id
-    )
-    
-    # search for time entries with the same time span
-    times_qs = mapcache_models.Time.objects.filter(
-        start_time__lte=browse.end_time, end_time__gte=browse.start_time,
-        source=source
-    )
-    
-    if len(times_qs) > 0 and not browse_layer_model.contains_volumes:
-        # If there are , merge them to one
-        logger.info("Merging %d Time entries." % (len(times_qs) + 1))
-        for time_model in times_qs:
-            minx = min(minx, time_model.minx)
-            miny = min(miny, time_model.miny)
-            maxx = max(maxx, time_model.maxx)
-            maxy = max(maxy, time_model.maxy)
-            start_time = min(start_time, time_model.start_time)
-            end_time = max(end_time, time_model.end_time)
-            
-            seed_mapcache(tileset=browse_layer_model.id, 
-                          grid=browse_layer_model.grid, 
-                          minx=time_model.minx, miny=time_model.miny,
-                          maxx=time_model.maxx, maxy=time_model.maxy, 
-                          minzoom=browse_layer_model.lowest_map_level, 
-                          maxzoom=browse_layer_model.highest_map_level,
-                          start_time=time_model.start_time,
-                          end_time=time_model.end_time,
-                          delete=True,
-                          **get_mapcache_seed_config(config))
-    
-        logger.info("Result time span is %s/%s." % (isoformat(start_time),
-                                                    isoformat(end_time)))
-        times_qs.delete()
-    
-    time_model = mapcache_models.Time(start_time=start_time, end_time=end_time,
-                                      minx=minx, miny=miny, 
-                                      maxx=maxx, maxy=maxy,
-                                      source=source)
-    
-    time_model.full_clean()
-    time_model.save()
-    
-    seed_areas.append((minx, miny, maxx, maxy, start_time, end_time))
+
+    if not browse_layer_model.contains_volumes and not browse_layer_model.contains_vertical_curtains:
+        # create mapcache models
+        source, _ = mapcache_models.Source.objects.get_or_create(
+            name=browse_layer_model.id
+        )
+        
+        # search for time entries with the same time span
+        times_qs = mapcache_models.Time.objects.filter(
+            start_time__lte=browse.end_time, end_time__gte=browse.start_time,
+            source=source
+        )
+        
+        if len(times_qs) > 0 and not browse_layer_model.contains_volumes:
+            # If there are , merge them to one
+            logger.info("Merging %d Time entries." % (len(times_qs) + 1))
+            for time_model in times_qs:
+                minx = min(minx, time_model.minx)
+                miny = min(miny, time_model.miny)
+                maxx = max(maxx, time_model.maxx)
+                maxy = max(maxy, time_model.maxy)
+                start_time = min(start_time, time_model.start_time)
+                end_time = max(end_time, time_model.end_time)
+                
+                seed_mapcache(tileset=browse_layer_model.id, 
+                              grid=browse_layer_model.grid, 
+                              minx=time_model.minx, miny=time_model.miny,
+                              maxx=time_model.maxx, maxy=time_model.maxy, 
+                              minzoom=browse_layer_model.lowest_map_level, 
+                              maxzoom=browse_layer_model.highest_map_level,
+                              start_time=time_model.start_time,
+                              end_time=time_model.end_time,
+                              delete=True,
+                              **get_mapcache_seed_config(config))
+        
+            logger.info("Result time span is %s/%s." % (isoformat(start_time),
+                                                        isoformat(end_time)))
+            times_qs.delete()
+        
+        time_model = mapcache_models.Time(start_time=start_time, end_time=end_time,
+                                          minx=minx, miny=miny, 
+                                          maxx=maxx, maxy=maxy,
+                                          source=source)
+        
+        time_model.full_clean()
+        time_model.save()
+        
+        seed_areas.append((minx, miny, maxx, maxy, start_time, end_time))
     
     return extent, (browse.start_time, browse.end_time)
 
