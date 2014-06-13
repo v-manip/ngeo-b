@@ -1035,7 +1035,6 @@ vmanip_uninstall() {
     echo " $SUBSYSTEM Uninstall"
     echo "------------------------------------------------------------------------------"
 
-    echo "Performing uninstallation step 10"
     echo "Delete DB for ngEO Browse Server"
 
     if service postgresql status ; then
@@ -1079,7 +1078,6 @@ EOF
         chkconfig postgresql off
     fi
 
-    echo "Performing uninstallation step 20"
     echo "Stop service ngeo"
     if [ -f /etc/init.d/ngeo ] ; then
         service ngeo stop
@@ -1088,19 +1086,15 @@ EOF
         rm -f /etc/init.d/ngeo
     fi
 
-    echo "Performing uninstallation step 30"
     echo "Delete ngEO Browse Server instance"
     rm -rf "${NGEOB_INSTALL_DIR}/ngeo_browse_server_instance"
 
-    echo "Performing uninstallation step 40"
     echo "Delete MapCache instance"
     rm -rf "${MAPCACHE_DIR}"
 
-    echo "Performing uninstallation step 50"
     echo "Delete Authorization module configuration"
     # TODO V2
 
-    echo "Performing uninstallation step 60"
     echo "Delete WebDAV"
     rm -rf "${NGEOB_INSTALL_DIR}/dav"
     rm -rf "${NGEOB_INSTALL_DIR}/store"
@@ -1108,18 +1102,12 @@ EOF
         rmdir "${NGEOB_INSTALL_DIR}"
     fi
 
-    echo "Performing uninstallation step 70"
     echo "Delete Apache HTTP server configuration"
     rm -rf "${APACHE_CONF}"
 
-    echo "Performing uninstallation step 80"
     echo "If any of the data locations has been changed delete all browse data there."
 
-#    echo "Performing uninstallation step 90"
-#    echo "Delete extra Yum repositories"
-#    yum erase -y epel-release elgis-release eox-release
 
-    echo "Performing uninstallation step 100"
     echo "Stop Apache HTTP server"#
     if service httpd status ; then
         service httpd stop
@@ -1127,13 +1115,6 @@ EOF
     if [ -f /etc/init.d/httpd ] ; then
         chkconfig httpd off
     fi
-
-#    echo "Performing uninstallation step 110"
-#    echo "Remove packages"
-#    yum erase -y  python-lxml mod_wsgi httpd postgresql pytz python-psycopg2 \
-#                  gdal gdal-python postgis mapserver Django14 mapserver-python \
-#                  mapcache ngEO_Browse_Server EOxServer libxerces-c-3_1 \
-#                  shibboleth mod_ssl
 
     echo "Finished $SUBSYSTEM uninstallation"
 
