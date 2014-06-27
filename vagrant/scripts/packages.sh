@@ -14,8 +14,10 @@ yum install -y gcc make gcc-c++ kernel-devel-`uname -r` zlib-devel \
                openssl-devel readline-devel perl wget httpd-devel pixman-devel \
                sqlite-devel libpng-devel libjpeg-devel libcurl-devel cmake \
                geos-devel fcgi-devel gdal-devel python-devel python-imaging \
-               python-collada python-unittest2
+               python-collada python-unittest2 numpy scipy sympy python-setuptools\
+               mesa-libGLU.x86_64 mesa-libGL.x86_64 SDL.x86_64
 
+sudo easy_install nibabel
 
 # Attention: Make sure to not install mapcache, ngEO_Browse_Server, and 
 # EOxServer from rpm packages!

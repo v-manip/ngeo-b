@@ -77,7 +77,8 @@ class BrowseLayer(models.Model):
             ("PRIVATE", "Private"),
         )
     )
-    contains_vertical_curtains = models.BooleanField(default=False) # TODO: Fixed to False as vertical curtains are not supported for now.
+    contains_vertical_curtains = models.BooleanField(default=False)
+    contains_volumes = models.BooleanField(default=False)
     r_band = models.IntegerField(null=True, blank=True, default=None)
     g_band = models.IntegerField(null=True, blank=True, default=None)
     b_band = models.IntegerField(null=True, blank=True, default=None)
@@ -121,6 +122,10 @@ class BrowseLayer(models.Model):
         if self.highest_map_level < self.lowest_map_level:
             raise ValidationError("Highest map level number must be greater "
                                   "than lowest map level number.")
+
+        if self.contains_volumes and self.contains_vertical_curtains:
+            raise ValidationError("Cannot contain both vertical curtains and "
+                                  "volumes.")
         # TODO: more checks
 
 
@@ -211,7 +216,10 @@ class Browse(models.Model):
     class Meta:
         verbose_name = "Browse image"
         verbose_name_plural = "Browse images"
-        unique_together = (("start_time", "end_time", "browse_layer"),)
+        # TODO: This should not be commented out, it is in theory a requirement
+        #        for browses. For now this was removed in order to allow various
+        #        volume coverages at the same time and layer
+        #unique_together = (("start_time", "end_time", "browse_layer"),)
     
     def clean(self):
         # custom model validation

@@ -1,13 +1,13 @@
 #!/bin/sh -e
 #-------------------------------------------------------------------------------
 #
-# Project: ngEO Browse Server <http://ngeo.eox.at>
+# Project: V-MANIP <http://v-manip.eox.at>
 # Authors: Fabian Schindler <fabian.schindler@eox.at>
-#          Marko Locher <marko.locher@eox.at>
+#          Daniel Santillan <daniel.santillan@eox.at>
 #          Stephan Meissl <stephan.meissl@eox.at>
 #
 #-------------------------------------------------------------------------------
-# Copyright (C) 2012, 2013 EOX IT Services GmbH
+# Copyright (C) 2013, 2014 EOX IT Services GmbH
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,10 +30,10 @@
 
 ################################################################################
 # @maintained by: EOX IT Services GmbH
-# @project NGEO T4
+# @project V-MANIP
 # @version 1.0
-# @date 2013-07-09
-# @purpose This script installs/uninstalls the ngEO Browse Server
+# @date 2014-06-13
+# @purpose This script installs/uninstalls the V-MANIP Server
 #
 #          Use with caution as passwords are sent on the command line and thus 
 #          can be seen by other users.
@@ -42,9 +42,9 @@
 #          Operation, and Maintenance Manual (IOM) [ngEO-BROW-IOM] section 4.3.
 # 
 # Usage:
-# - Installation: sudo ./ngeo-install.sh install
-# - Uninstallation: sudo ./ngeo-install.sh uninstall
-# - Installation status: sudo ./ngeo-install.sh status
+# - Installation: sudo ./install_vmanip_server.sh install
+# - Uninstallation: sudo ./install_vmanip_server.sh uninstall
+# - Installation status: sudo ./install_vmanip_server.sh status
 ################################################################################
 
 # ------------------------------------------------------------------------------
@@ -120,18 +120,16 @@ SP_HOME_BASE_URL="https://5.9.173.39"
 # ------------------------------------------------------------------------------
 # Install
 # ------------------------------------------------------------------------------
-ngeo_install() {
+vmanip_install() {
 
     echo "------------------------------------------------------------------------------"
     echo " $SUBSYSTEM Install"
     echo "------------------------------------------------------------------------------"  
 
-    echo "Performing installation step 0"
     echo "Uninstalling any previous version"
-    ngeo_uninstall
+    vmanip_uninstall
 
-    echo "Starting ngEO Browse Server installation"
-    echo "Assuming successful execution of installation steps 10, 20, and 30"
+    echo "Starting V-MANIP Server installation"
 
     # Check architecture
     if [ "`uname -m`" != "x86_64" ] ; then
@@ -150,7 +148,7 @@ ngeo_install() {
     # OS installation
     #-----------------
 
-    echo "Performing installation step 40"
+    echo "Performing necessary OS installations and configurations"
     # Disable SELinux
     if ! [ `getenforce` == "Disabled" ] ; then
         setenforce 0
@@ -159,11 +157,10 @@ ngeo_install() {
         sed -e 's/^SELINUX=.*$/SELINUX=disabled/' -i /etc/selinux/config
     fi
 
-    echo "Performing installation step 50"
+
     # Install packages
     yum install -y python-lxml mod_wsgi httpd postgresql-server python-psycopg2 pytz
 
-    echo "Performing installation step 60"
     # Permanently start PostgreSQL
     chkconfig postgresql on
     # Init PostgreSQL
@@ -178,44 +175,45 @@ ngeo_install() {
     # Reload PostgreSQL
     service postgresql force-reload
 
-    echo "Performing installation step 70"
     # Permanently start Apache
     chkconfig httpd on
     # Reload Apache
     service httpd graceful
+
+    echo "Finished installation and configuration of OS components"
 
 
     #-----------------------
     # OSS/COTS installation
     #-----------------------
 
-    echo "Assuming successful execution of installation step 80"
+    
+    echo "Performing installation of OSS/COTS Software"
 
     # Install needed yum repositories
-    echo "Performing installation step 90"
+
     # EPEL
     rpm -Uvh --replacepkgs http://download.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
-    echo "Performing installation step 100"
+
     # ELGIS
     rpm -Uvh --replacepkgs http://elgis.argeo.org/repos/6/elgis-release-6-6_0.noarch.rpm
 
-    echo "Performing installation step 110"
     # Apply available upgrades
     yum update -y
 
-    echo "Performing installation step 120"
     # Install packages
     yum install -y gdal gdal-python postgis Django14 proj-epsg python-imaging python-collada python-unittest2
 
+    echo "Finished installation of OSS/COTS Software"
 
     #------------------------
     # Component installation
     #------------------------
 
-    echo "Assuming successful execution of installation step 130"
+    echo "Performing Component installation"
 
     # Install needed yum repositories
-    echo "Performing installation step 140"
+
     # EOX
     rpm -Uvh --replacepkgs http://yum.packages.eox.at/el/eox-release-6-2.noarch.rpm
     #TODO: Enable only in testing mode once stable enough.
@@ -227,8 +225,6 @@ ngeo_install() {
     sed -e 's/testing/unstable/' -i /etc/yum.repos.d/eox-unstable.repo
     sed -e 's/^enabled=0/enabled=1/' -i /etc/yum.repos.d/eox-unstable.repo
 
-
-    echo "Performing installation step 150"
     # Set includepkgs in EOX Stable
     if ! grep -Fxq "includepkgs=mapserver mapserver-python mapcache libxml2 libxml2-python libxerces-c-3_1" /etc/yum.repos.d/eox.repo ; then
         sed -e 's/^\[eox\]$/&\nincludepkgs=mapserver mapserver-python mapcache libxml2 libxml2-python libxerces-c-3_1/' -i /etc/yum.repos.d/eox.repo
@@ -251,18 +247,15 @@ ngeo_install() {
         sed -e 's/^\[eox-unstable-noarch\]$/&\nincludepkgs=V-MANIP_Server ngEO_Browse_Server_vmanip/' -i /etc/yum.repos.d/eox-unstable.repo
     fi
 
-    echo "Performing installation step 160"
     # Set exclude in CentOS-Base
     if ! grep -Fxq "exclude=libxml2 libxml2-python" /etc/yum.repos.d/CentOS-Base.repo ; then
         sed -e 's/^\[base\]$/&\nexclude=libxml2 libxml2-python libxerces-c-3_1/' -i /etc/yum.repos.d/CentOS-Base.repo
         sed -e 's/^\[updates\]$/&\nexclude=libxml2 libxml2-python libxerces-c-3_1/' -i /etc/yum.repos.d/CentOS-Base.repo
     fi
 
-    echo "Performing installation step 170"
     # Install packages
     yum install -y libxml2 libxml2-python mapserver mapserver-python mapcache V-MANIP_Server ngEO_Browse_Server_vmanip EOxServer_vmanip
 
-    echo "Performing installation step 180"
     # Configure PostgreSQL/PostGIS database
 
     ## Write database configuration script
@@ -306,7 +299,6 @@ EOF
         echo "Script to configure DB not found."
     fi
 
-    echo "Performing installation step 190"
     # ngEO Browse Server
     [ -d "$NGEOB_INSTALL_DIR" ] || mkdir -p "$NGEOB_INSTALL_DIR"
     cd "$NGEOB_INSTALL_DIR"
@@ -317,7 +309,6 @@ EOF
 
         django-admin startproject --extension=conf --template=`python -c "import ngeo_browse_server, os; from os.path import dirname, abspath, join; print(join(dirname(abspath(ngeo_browse_server.__file__)), 'project_template'))"` ngeo_browse_server_instance
         
-        echo "Performing installation step 200"
         cd -
         cd "${NGEOB_INSTALL_DIR}/ngeo_browse_server_instance"
         # Configure DBs
@@ -363,10 +354,9 @@ EOF
 
         cd -
     else
-        echo "Skipped installation steps 190 and 200"
+        echo "Skipped Creating and configuring ngEO Browse Server instance."
     fi
 
-    echo "Performing installation step 210"
     # MapCache
     if [ ! -f "$MAPCACHE_DIR/$MAPCACHE_CONF" ] ; then
         echo "Configuring MapCache."
@@ -420,10 +410,9 @@ EOF
 
         cd -
     else
-        echo "Skipped installation step 210"
+        echo "Skipped MapCache configuration"
     fi
 
-    echo "Performing installation step 220"
     # Shibboleth installation
     if "$USE_SHIBBOLETH" ; then
         echo "Installing Shibboleth"
@@ -803,11 +792,10 @@ EOF
         echo "Done installing Shibboleth"
 
     else
-        echo "Skipped installation step 220"
+        echo "Skipped Shibboleth installation"
     fi
     # END Shibboleth Installation
 
-    echo "Performing installation step 230"
     # Configure WebDAV
     if [ ! -d "$NGEOB_INSTALL_DIR/dav" ] ; then
         echo "Configuring WebDAV."
@@ -821,10 +809,9 @@ EOF
             chown -R apache:apache "$NGEOB_INSTALL_DIR/store"
         fi
     else
-        echo "Skipped installation step 230"
+        echo "Skipped WebDav installation"
     fi
 
-    echo "Performing installation step 240"
     # Add Apache configuration
     if [ ! -f "$APACHE_CONF" ] ; then
         echo "Configuring Apache."
@@ -896,6 +883,9 @@ EOF
         Header set Access-Control-Allow-Origin *
         Header set Access-Control-Allow-Headers if-modified-since
         Header add Access-Control-Allow-Headers range
+        Header add Access-Control-Allow-Headers Content-Type
+        Header set Access-Control-Expose-Headers Content-Id
+        Header add Access-Control-Expose-Headers Content-Disposition
     </Directory>
 
     DavLockDB "$NGEOB_INSTALL_DIR/dav/DavLock"
@@ -916,6 +906,17 @@ EOF
     <Directory $NGEOB_INSTALL_DIR/dav>
         Order Allow,Deny
         Deny from all
+    </Directory>
+
+    Alias "/gltf" "/var/www/cache/gltf"
+    <Directory "/var/www/cache/gltf">
+        AllowOverride None
+        Options +Indexes
+        Order allow,deny
+        Allow from all
+        Header set Access-Control-Allow-Origin *
+        Header set Access-Control-Allow-Headers if-modified-since
+        Header add Access-Control-Allow-Headers range
     </Directory>
 EOF
 
@@ -995,14 +996,12 @@ SSLCryptoDevice builtin
 EOF
         fi
     else
-        echo "Skipped installation step 240"
+        echo "Skipped apache configuration"
     fi
 
-    echo "Performing installation step 250"
     # Reload Apache
     service httpd graceful
 
-    echo "Performing installation step 260"
     # Configure Browse Server as service "ngeo"
     cp ngeo /etc/init.d/
     chkconfig --level 235 ngeo on
@@ -1030,13 +1029,12 @@ EOF
 # ------------------------------------------------------------------------------
 # Uninstall
 # ------------------------------------------------------------------------------
-ngeo_uninstall() {
+vmanip_uninstall() {
 
     echo "------------------------------------------------------------------------------"
     echo " $SUBSYSTEM Uninstall"
     echo "------------------------------------------------------------------------------"
 
-    echo "Performing uninstallation step 10"
     echo "Delete DB for ngEO Browse Server"
 
     if service postgresql status ; then
@@ -1080,7 +1078,6 @@ EOF
         chkconfig postgresql off
     fi
 
-    echo "Performing uninstallation step 20"
     echo "Stop service ngeo"
     if [ -f /etc/init.d/ngeo ] ; then
         service ngeo stop
@@ -1089,19 +1086,15 @@ EOF
         rm -f /etc/init.d/ngeo
     fi
 
-    echo "Performing uninstallation step 30"
     echo "Delete ngEO Browse Server instance"
     rm -rf "${NGEOB_INSTALL_DIR}/ngeo_browse_server_instance"
 
-    echo "Performing uninstallation step 40"
     echo "Delete MapCache instance"
     rm -rf "${MAPCACHE_DIR}"
 
-    echo "Performing uninstallation step 50"
     echo "Delete Authorization module configuration"
     # TODO V2
 
-    echo "Performing uninstallation step 60"
     echo "Delete WebDAV"
     rm -rf "${NGEOB_INSTALL_DIR}/dav"
     rm -rf "${NGEOB_INSTALL_DIR}/store"
@@ -1109,18 +1102,12 @@ EOF
         rmdir "${NGEOB_INSTALL_DIR}"
     fi
 
-    echo "Performing uninstallation step 70"
     echo "Delete Apache HTTP server configuration"
     rm -rf "${APACHE_CONF}"
 
-    echo "Performing uninstallation step 80"
     echo "If any of the data locations has been changed delete all browse data there."
 
-#    echo "Performing uninstallation step 90"
-#    echo "Delete extra Yum repositories"
-#    yum erase -y epel-release elgis-release eox-release
 
-    echo "Performing uninstallation step 100"
     echo "Stop Apache HTTP server"#
     if service httpd status ; then
         service httpd stop
@@ -1128,13 +1115,6 @@ EOF
     if [ -f /etc/init.d/httpd ] ; then
         chkconfig httpd off
     fi
-
-#    echo "Performing uninstallation step 110"
-#    echo "Remove packages"
-#    yum erase -y  python-lxml mod_wsgi httpd postgresql pytz python-psycopg2 \
-#                  gdal gdal-python postgis mapserver Django14 mapserver-python \
-#                  mapcache ngEO_Browse_Server EOxServer libxerces-c-3_1 \
-#                  shibboleth mod_ssl
 
     echo "Finished $SUBSYSTEM uninstallation"
 
@@ -1156,7 +1136,7 @@ ngeo_check_rpm_status () {
 # ------------------------------------------------------------------------------
 # Status
 # ------------------------------------------------------------------------------
-ngeo_status() {
+vmanip_status() {
     echo "------------------------------------------------------------------------------"
     echo " $SUBSYSTEM status check"
     echo "------------------------------------------------------------------------------"
@@ -1171,13 +1151,13 @@ ngeo_status() {
 # ------------------------------------------------------------------------------
 case "$1" in
 install)
-    ngeo_install
+    vmanip_install
 ;;
 uninstall)
-    ngeo_uninstall
+    vmanip_uninstall
 ;;
 status)
-    ngeo_status
+    vmanip_status
 ;;
 *)
     echo "Usage: $0 {install|uninstall|status}"

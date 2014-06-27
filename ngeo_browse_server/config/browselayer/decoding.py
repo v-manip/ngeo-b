@@ -84,6 +84,8 @@ def decode_browse_layers(browse_layers_elem, config=None):
             or tile_query_limit_default
         )
 
+        opt["contains_volumes"] = browse_layer_elem.findtext(ns_cfg("contains_volumes")) == "true"
+
         browse_layers.append(BrowseLayer(
             browse_layer_elem.get("browseLayerId"),
             browse_layer_elem.find(ns_cfg("browseType")).text,
@@ -109,6 +111,7 @@ browse_layer_decoder = XMLDecoder({
     "browse_access_policy": "cfg:browseAccessPolicy/text()",
     "related_dataset_ids": ("cfg:relatedDatasetIds/cfg:datasetId/text()", str, "*"),
     "contains_vertical_curtains": ("cfg:containsVerticalCurtains", lambda v: v == "true"),
+    "contains_volumes": ("cfg:contains_volumes", lambda v: v == "true"),
     "r_band": ("cfg:rgbBands/text()", lambda v: int(v.split(",")[0])),
     "g_band": ("cfg:rgbBands/text()", lambda v: int(v.split(",")[1])),
     "b_band": ("cfg:rgbBands/text()", lambda v: int(v.split(",")[2])),

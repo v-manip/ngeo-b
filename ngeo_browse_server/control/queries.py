@@ -108,7 +108,7 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
         browse_model = _create_model(browse, browse_report_model, 
                                      browse_layer_model, coverage_id,
                                      models.RectifiedBrowse)
-        browse_model.full_clean()
+        browse_model.full_clean(exclude=("start_time","end_time"))
         browse_model.save()
         
     elif browse.geo_type == "footprintBrowse":
@@ -237,10 +237,10 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     if vertical_grid is None:    
         coverage = eoxs_models.RectifiedDataset.objects.create(**kwargs)
     elif not browse.geo_type == "verticalCurtainBrowse":
-        kwargs["look_angle"] = browse.look_angle
         coverage = eoxs_models.CubeCoverage.objects.create(**kwargs)
 
     else:
+        kwargs["look_angle"] = browse.look_angle
         coverage = eoxs_models.CurtainCoverage.objects.create(**kwargs)
         
 
@@ -293,53 +293,54 @@ def create_browse(browse, browse_report_model, browse_layer_model, coverage_id,
     extent = coverage.extent
     minx, miny, maxx, maxy = extent
     start_time, end_time = browse.start_time, browse.end_time
-    
-    # create mapcache models
-    source, _ = mapcache_models.Source.objects.get_or_create(
-        name=browse_layer_model.id
-    )
-    
-    # search for time entries with the same time span
-    times_qs = mapcache_models.Time.objects.filter(
-        start_time__lte=browse.end_time, end_time__gte=browse.start_time,
-        source=source
-    )
-    
-    if len(times_qs) > 0:
-        # If there are , merge them to one
-        logger.info("Merging %d Time entries." % (len(times_qs) + 1))
-        for time_model in times_qs:
-            minx = min(minx, time_model.minx)
-            miny = min(miny, time_model.miny)
-            maxx = max(maxx, time_model.maxx)
-            maxy = max(maxy, time_model.maxy)
-            start_time = min(start_time, time_model.start_time)
-            end_time = max(end_time, time_model.end_time)
-            
-            seed_mapcache(tileset=browse_layer_model.id, 
-                          grid=browse_layer_model.grid, 
-                          minx=time_model.minx, miny=time_model.miny,
-                          maxx=time_model.maxx, maxy=time_model.maxy, 
-                          minzoom=browse_layer_model.lowest_map_level, 
-                          maxzoom=browse_layer_model.highest_map_level,
-                          start_time=time_model.start_time,
-                          end_time=time_model.end_time,
-                          delete=True,
-                          **get_mapcache_seed_config(config))
-    
-        logger.info("Result time span is %s/%s." % (isoformat(start_time),
-                                                    isoformat(end_time)))
-        times_qs.delete()
-    
-    time_model = mapcache_models.Time(start_time=start_time, end_time=end_time,
-                                      minx=minx, miny=miny, 
-                                      maxx=maxx, maxy=maxy,
-                                      source=source)
-    
-    time_model.full_clean()
-    time_model.save()
-    
-    seed_areas.append((minx, miny, maxx, maxy, start_time, end_time))
+
+    if not browse_layer_model.contains_volumes and not browse_layer_model.contains_vertical_curtains:
+        # create mapcache models
+        source, _ = mapcache_models.Source.objects.get_or_create(
+            name=browse_layer_model.id
+        )
+        
+        # search for time entries with the same time span
+        times_qs = mapcache_models.Time.objects.filter(
+            start_time__lte=browse.end_time, end_time__gte=browse.start_time,
+            source=source
+        )
+        
+        if len(times_qs) > 0 and not browse_layer_model.contains_volumes:
+            # If there are , merge them to one
+            logger.info("Merging %d Time entries." % (len(times_qs) + 1))
+            for time_model in times_qs:
+                minx = min(minx, time_model.minx)
+                miny = min(miny, time_model.miny)
+                maxx = max(maxx, time_model.maxx)
+                maxy = max(maxy, time_model.maxy)
+                start_time = min(start_time, time_model.start_time)
+                end_time = max(end_time, time_model.end_time)
+                
+                seed_mapcache(tileset=browse_layer_model.id, 
+                              grid=browse_layer_model.grid, 
+                              minx=time_model.minx, miny=time_model.miny,
+                              maxx=time_model.maxx, maxy=time_model.maxy, 
+                              minzoom=browse_layer_model.lowest_map_level, 
+                              maxzoom=browse_layer_model.highest_map_level,
+                              start_time=time_model.start_time,
+                              end_time=time_model.end_time,
+                              delete=True,
+                              **get_mapcache_seed_config(config))
+        
+            logger.info("Result time span is %s/%s." % (isoformat(start_time),
+                                                        isoformat(end_time)))
+            times_qs.delete()
+        
+        time_model = mapcache_models.Time(start_time=start_time, end_time=end_time,
+                                          minx=minx, miny=miny, 
+                                          maxx=maxx, maxy=maxy,
+                                          source=source)
+        
+        time_model.full_clean()
+        time_model.save()
+        
+        seed_areas.append((minx, miny, maxx, maxy, start_time, end_time))
     
     return extent, (browse.start_time, browse.end_time)
 
@@ -542,10 +543,11 @@ def add_browse_layer(browse_layer, config=None):
     eoxs_models.DatasetSeries.objects.create(identifier=browse_layer.id)
 
     # remove source from mapcache sqlite
-    mapcache_models.Source.objects.create(name=browse_layer.id)
+    if not browse_layer.contains_volumes and not browse_layer.contains_vertical_curtains:
+        mapcache_models.Source.objects.create(name=browse_layer.id)
 
-    # add an XML section to the mapcache config xml
-    add_mapcache_layer_xml(browse_layer, config)
+        # add an XML section to the mapcache config xml
+        add_mapcache_layer_xml(browse_layer, config)
 
     # create a base directory for optimized files
     directory = get_project_relative_path(join(
@@ -598,9 +600,10 @@ def update_browse_layer(browse_layer, config=None):
     browse_layer_model.full_clean()
     browse_layer_model.save()
 
-    if refresh_mapcache_xml:
-        remove_mapcache_layer_xml(browse_layer, config)
-        add_mapcache_layer_xml(browse_layer, config)
+    if not browse_layer.contains_volumes and not browse_layer.contains_vertical_curtains:
+        if refresh_mapcache_xml:
+            remove_mapcache_layer_xml(browse_layer, config)
+            add_mapcache_layer_xml(browse_layer, config)
 
 
 def delete_browse_layer(browse_layer, config=None):
@@ -611,22 +614,23 @@ def delete_browse_layer(browse_layer, config=None):
     models.BrowseLayer.objects.get(id=browse_layer.id).delete()
     eoxs_models.DatasetSeries.objects.get(identifier=browse_layer.id).delete()
 
-    # remove source from mapcache sqlite
-    mapcache_models.Source.objects.get(name=browse_layer.id).delete()
+    if not browse_layer.contains_volumes and not browse_layer.contains_vertical_curtains:
+        # remove source from mapcache sqlite
+        mapcache_models.Source.objects.get(name=browse_layer.id).delete()
 
-    # remove browse layer from mapcache XML
-    remove_mapcache_layer_xml(browse_layer, config)
+        # remove browse layer from mapcache XML
+        remove_mapcache_layer_xml(browse_layer, config)
 
-    # delete browse layer cache
-    try:
-        os.remove(get_tileset_path(browse_layer.browse_type))
-    except OSError:
-        # when no browse was ingested, the sqlite file does not exist, so just
-        # issue a warning
-        logger.warning(
-            "Could not remove tileset '%s'." 
-            % get_tileset_path(browse_layer.browse_type)
-        )
+        # delete browse layer cache
+        try:
+            os.remove(get_tileset_path(browse_layer.browse_type))
+        except OSError:
+            # when no browse was ingested, the sqlite file does not exist, so just
+            # issue a warning
+            logger.warning(
+                "Could not remove tileset '%s'." 
+                % get_tileset_path(browse_layer.browse_type)
+            )
 
     # delete all optimzed files by deleting the whole directory of the layer
     optimized_dir = get_project_relative_path(join(

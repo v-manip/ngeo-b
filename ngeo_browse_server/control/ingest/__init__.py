@@ -39,16 +39,21 @@ import traceback
 from datetime import datetime
 import string
 import uuid
+import urllib2
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.template.loader import render_to_string
+from django.contrib.gis.geos import Polygon
+
 from eoxserver.processing.preprocessing import WMSPreProcessor, RGB, RGBA, ORIG_BANDS
 from eoxserver.processing.preprocessing.format import get_format_selection
 from eoxserver.processing.preprocessing.georeference import Extent, GCPList
 from eoxserver.resources.coverages.crss import fromShortCode, hasSwappedAxes
 from eoxserver.processing.preprocessing.exceptions import GCPTransformException
+from eoxserver.resources.coverages import models as eoxs_models
+from eoxserver.core.util.timetools import isoformat
 
 from ngeo_browse_server.config import get_ngeo_config, safe_get
 from ngeo_browse_server.config import models
@@ -75,11 +80,13 @@ from ngeo_browse_server.mapcache.config import get_mapcache_seed_config
 from ngeo_browse_server.config.browsereport.serialization import (
     serialize_browse_report
 )
+from ngeo_browse_server.mapcache.exceptions import SeedException
 from ngeo_browse_server.control.queries import (
     get_existing_browse, create_browse_report, create_browse, remove_browse
 )
 from ngeo_browse_server.control.ingest.preprocessing.preprocessor import (
-    NGEOPreProcessor, VerticalCurtainPreprocessor, VerticalCurtainGeoReference
+    NGEOPreProcessor, VerticalCurtainPreprocessor, VerticalCurtainGeoReference,
+    VolumePreProcessor
 )
 
 
@@ -118,7 +125,9 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
     # create the required preprocessor/format selection
     format_selection = get_format_selection("GTiff",
                                             **get_format_config(config))
-    if do_preprocessing and not browse_layer.contains_vertical_curtains:
+
+    if do_preprocessing and not browse_layer.contains_vertical_curtains \
+        and not browse_layer.contains_volumes:
         # add config parameters and custom params
         params = get_optimization_config(config)
         
@@ -171,6 +180,9 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
 
         preprocessor = VerticalCurtainPreprocessor(**params)
 
+    elif browse_layer.contains_volumes:
+        preprocessor = VolumePreProcessor()
+
     else:
         preprocessor = None # TODO: CopyPreprocessor
     
@@ -217,9 +229,10 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                     transaction.commit() 
                     transaction.commit(using="mapcache")
                     
+                    
                     logger.info("Commited changes to database.")
 
-                    if not browse_layer.contains_vertical_curtains:
+                    if not browse_layer.contains_vertical_curtains and not browse_layer.contains_volumes:
                     
                         for minx, miny, maxx, maxy, start_time, end_time in seed_areas:
                             try:
@@ -240,10 +253,59 @@ def ingest_browse_report(parsed_browse_report, do_preprocessing=True, config=Non
                                 
                             except Exception, e:
                                 logger.warn("Seeding failed: %s" % str(e))
+                    
+                    elif not browse_layer.contains_volumes:
+
+                        host = "http://localhost/browse/ows"
+
+                        level_0_num_tiles_y = 2  # rows
+                        level_0_num_tiles_x = 4  # cols
+
+                        seed_level = range(browse_layer.lowest_map_level, browse_layer.highest_map_level)
+
+                        for tileLevel in seed_level:
+
+                            tiles_x = level_0_num_tiles_x * pow(2, tileLevel);
+                            tiles_y = level_0_num_tiles_y * pow(2, tileLevel)
+
+                            #find which tiles are crossed by extent
+                            tile_width = 360 / (tiles_x)
+                            tile_height = 180 / (tiles_y)
+
+                            coverage = eoxs_models.Coverage.objects.get(identifier=result.identifier)
+
+                            #cycle through tiles
+                            for col in range(tiles_x):
+                                for row in range(tiles_y):
+
+                                    west = -180 + (col * tile_width)
+                                    east = west + tile_width
+                                    north = 90 - (row * tile_height)
+                                    south = north - tile_height
+
+                                    if (coverage.footprint.intersects(Polygon.from_bbox( (west,south,east,north) ))):
+
+                                        try:
+                                            # NOTE: The MeshFactory ignores time
+                                            time = (isoformat(result.time_interval[0]) + "/" + isoformat(result.time_interval[1]))
+                                            
+                                            baseurl = host + '?service=W3DS&request=GetTile&version=1.0.0&crs=EPSG:4326&layer={0}&style=default&format=model/gltf'.format(browse_layer.id)
+                                            url = '{0}&tileLevel={1}&tilecol={2}&tilerow={3}&time={4}'.format(baseurl, tileLevel, col, row, time)
+
+                                            logger.info('Seeding call to URL: %s' % (url,))
+
+                                            response = urllib2.urlopen(url)
+                                            response.close()
+
+                                        except Exception, e:
+                                            logger.warn("Seeding failed: %s" % str(e))
+
+                        transaction.commit() 
 
                     else:
-                        #TODO: Introduce special curtain seeding here
                         pass
+                                            
+
                     
                 except Exception, e:
                     # report error
@@ -317,6 +379,12 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
     replaced a previous browse entry.
     """
     
+
+
+    # TODO: if curtain: check that layer allows curtains
+    # TODO: same for volumes
+
+
     logger.info("Ingesting browse '%s'."
                 % (parsed_browse.browse_identifier or "<<no ID>>"))
     
@@ -373,7 +441,7 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
     try:
         # check if a browse already exists and delete it in order to replace it
         existing_browse_model = get_existing_browse(parsed_browse, browse_layer.id)
-        if existing_browse_model:
+        if existing_browse_model and not browse_layer.contains_volumes:
             identifier = existing_browse_model.browse_identifier
 
             # if the to be ingested browse is equal to an already stored one
@@ -467,12 +535,14 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
                     True, merge_with, merge_footprint
                 )
             except (RuntimeError, GCPTransformException), e:
-                raise IngestionException(str(e))
+                e_info = sys.exc_info()
+                raise IngestionException(str(e)), None, e_info[2]
             
             # validate preprocess result
-            if result.num_bands not in (1, 3, 4): # color index, RGB, RGBA
-                raise IngestionException("Processed browse image has %d bands."
-                                         % result.num_bands)
+            if not browse_layer.contains_volumes:
+                if result.num_bands not in (1, 3, 4): # color index, RGB, RGBA
+                    raise IngestionException("Processed browse image has %d bands."
+                                             % result.num_bands)
             
             logger.info("Creating database models.")
             extent, time_interval = create_browse(
@@ -531,11 +601,11 @@ def ingest_browse(parsed_browse, browse_report, browse_layer, preprocessor, crs,
                 % coverage_id)
     
     if not replaced:
-        return IngestBrowseResult(parsed_browse.browse_identifier, extent,
+        return IngestBrowseResult(coverage_id, extent,
                                   time_interval)
     
     else:
-        return IngestBrowseReplaceResult(parsed_browse.browse_identifier, 
+        return IngestBrowseReplaceResult(coverage_id, 
                                          extent, time_interval, replaced_extent, 
                                          replaced_time_interval)
 
@@ -652,6 +722,10 @@ def _georef_from_parsed(parsed_browse):
     elif parsed_browse.geo_type == "verticalCurtainBrowse":
         pixels = decode_coord_list(parsed_browse.col_row_list)
         coord_list = decode_coord_list(parsed_browse.coord_list, swap_axes)
+
+        if _coord_list_crosses_dateline(coord_list, CRS_BOUNDS[srid]):
+            logger.info("Vertical curtain footprint crosses the dateline. Normalizing it.")
+            coord_list = _unwrap_coord_list(coord_list, CRS_BOUNDS[srid])
 
         gcps = [(x, y, pixel, line) 
                 for (x, y), (pixel, line) in zip(coord_list, pixels)]
