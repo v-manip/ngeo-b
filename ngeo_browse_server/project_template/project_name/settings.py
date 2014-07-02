@@ -151,6 +151,7 @@ MIDDLEWARE_CLASSES = (
 
     # For management of the per/request cache system.
     'eoxserver.backends.middleware.BackendsCacheMiddleware',
+    'eoxserver.services.auth.middleware.PDPMiddleware',
 )
 
 ROOT_URLCONF = '{{ project_name }}.urls'
@@ -213,6 +214,7 @@ COMPONENTS = (
     'eoxserver.services.ows.wps.**',
     'vmanip_server.mesh_factory.ows.w3ds.**',
     'vmanip_server.mesh_cache.ows.w3ds.**',
+    'eoxserver.services.auth.ngeopep',
 )
 
 
